@@ -1,0 +1,194 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { DataTable, Empty, Legend, PageHeader, Panel, SOURCE_SEGMENTS, StackedBar, parsePeriod } from "@/components/dashboard";
+import { Badge, Stat } from "@/components/ui";
+import { firstName } from "@/components/format";
+import {
+  barberRevenue,
+  clubTotals,
+  periodRange,
+  planIndicators,
+  plansSoldByBarber,
+  productStats,
+  retentionRisk,
+  revenueMix,
+  upsellCandidates,
+} from "@/domain/metrics";
+import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
+import { loadSnapshot } from "@/server/data/store";
+
+export const metadata: Metadata = { title: "Painel" };
+
+export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const s = await loadSnapshot();
+  const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
+  const mix = revenueMix(s, range);
+  const barbers = barberRevenue(s, range);
+  const club = clubTotals(s, range);
+  const plans = planIndicators(s, range);
+  const upsell = upsellCandidates(s);
+  const risk = retentionRisk(s);
+  const sellers = plansSoldByBarber(s, range).slice(0, 5);
+  const products = productStats(s, range);
+  const lowStock = products.filter((p) => p.lowStock && p.product.active);
+  const leads = s.leads.filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled"));
+  const occupancy = barbers.length ? barbers.reduce((t, b) => t + b.occupancy, 0) / barbers.length : 0;
+  const maxBarber = Math.max(...barbers.map((b) => b.totalCents), 1);
+  const qs = range.id === "mes" ? "" : `?periodo=${range.id}`;
+
+  return (
+    <>
+      <PageHeader title="Visão geral" range={range} path="/painel" />
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+        <Stat dark label="Faturamento" value={formatMoneyCompact(mix.totalCents)} hint={`${formatInt(mix.completed)} atendimentos`} />
+        <Stat label="Receita recorrente do clube" value={formatMoneyCompact(club.mrrCents)} hint="por mês, assinantes ativos" />
+        <Stat label="Assinantes" value={formatInt(club.members)} hint={`+${club.newInRange} novos · −${club.canceledInRange} cancelados`} />
+        <Stat label="Ticket médio avulso" value={formatMoneyRound(mix.avgWalkInTicketCents)} hint={`${formatInt(mix.walkInVisits)} visitas pagas na hora`} />
+        <Stat label="Ocupação da agenda" value={formatPercent(occupancy)} hint={`${mix.noShows} faltas no período`} />
+      </div>
+
+      <Panel
+        title="Faturamento por barbeiro ativo"
+        note="Avulso + parte do clube (rateada pelo valor dos serviços que cada um atendeu) + produtos vendidos"
+        action={
+          <Link href={`/painel/barbeiros${qs}`} className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+            Detalhes <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        }
+      >
+        <div className="flex flex-col gap-3.5 px-5 py-4">
+          <Legend items={Object.values(SOURCE_SEGMENTS)} />
+          {barbers.map((b) => (
+            <div key={b.barber.id} className="grid grid-cols-[minmax(110px,160px)_1fr_auto] items-center gap-3 text-sm">
+              <span className="truncate">
+                <span className="font-semibold">{b.barber.name}</span>
+                <span className="block text-xs text-muted">{b.unitName}</span>
+              </span>
+              <StackedBar
+                max={maxBarber}
+                label={`${b.barber.name}: ${formatMoneyRound(b.totalCents)}`}
+                segments={[
+                  { ...SOURCE_SEGMENTS.walkIn, value: b.walkInCents },
+                  { ...SOURCE_SEGMENTS.club, value: b.clubShareCents },
+                  { ...SOURCE_SEGMENTS.product, value: b.productCents },
+                ]}
+              />
+              <span className="w-24 text-right font-semibold">{formatMoneyRound(b.totalCents)}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div className="flex flex-wrap gap-6">
+        <Panel
+          title="Mister Club por plano"
+          className="flex-[999_1_560px]"
+          action={
+            <Link href={`/painel/clube${qs}`} className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+              Detalhes <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          }
+        >
+          <DataTable
+            minWidth={560}
+            head={
+              <>
+                <th>Plano</th>
+                <th className="text-right">Assinantes</th>
+                <th className="text-right">Receita/mês</th>
+                <th className="text-right">Novos</th>
+                <th className="text-right">Cancel.</th>
+              </>
+            }
+          >
+            {plans.map((p) => (
+              <tr key={p.plan.id}>
+                <td>
+                  <span className="font-semibold">{p.plan.name.replace("Mister Club ", "")}</span>
+                  {club.bestSeller?.id === p.plan.id ? (
+                    <Badge tone="dark" className="ml-2">
+                      Mais vendido
+                    </Badge>
+                  ) : null}
+                  <span className="block text-xs text-muted">{formatMoney(p.plan.priceCents)}</span>
+                </td>
+                <td className="text-right">{formatInt(p.members)}</td>
+                <td className="text-right">{formatMoneyRound(p.mrrCents)}</td>
+                <td className="text-right">+{p.newInRange}</td>
+                <td className="text-right">{p.canceledInRange ? `−${p.canceledInRange}` : "0"}</td>
+              </tr>
+            ))}
+          </DataTable>
+        </Panel>
+
+        <Panel title="Indicações automáticas" className="flex-[1_1_320px]" note="O que o sistema sugere fazer agora">
+          <ul className="flex flex-col divide-y divide-line-soft">
+            <Suggestion href="/painel/clube#indicar" count={upsell.length} title="Clientes que economizariam no clube" detail={upsell[0] ? `Ex.: ${firstName(upsell[0].customer.name)} pagaria ${formatMoneyRound(upsell[0].monthlySavingCents)} a menos no ${upsell[0].plan.name.replace("Mister Club ", "")}` : "Ninguém no momento"} />
+            <Suggestion href="/painel/clube#interessados" count={leads.length} title="Pediram para assinar pelo app" detail="Confirme no WhatsApp e ative a cobrança" />
+            <Suggestion href="/painel/clube#risco" count={risk.length} title="Assinantes em risco" detail={`${risk.filter((r) => r.reason === "past_due").length} com pagamento recusado · ${risk.filter((r) => r.reason === "late").length} sumidos`} />
+            <Suggestion href="/painel/produtos" count={lowStock.length} title="Produtos acabando" detail={lowStock.map((p) => p.product.name).slice(0, 2).join(", ") || "Estoque em dia"} />
+          </ul>
+        </Panel>
+      </div>
+
+      <div className="flex flex-wrap gap-6">
+        <Panel title="Quem mais vendeu o clube" className="flex-[1_1_320px]" note="Assinaturas novas atribuídas a cada barbeiro no período">
+          {sellers.length ? (
+            <ol className="flex flex-col divide-y divide-line-soft">
+              {sellers.map((x, i) => (
+                <li key={x.barber.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                  <span className="w-5 font-display text-muted">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate font-semibold">{x.barber.name}</span>
+                  <span className="flex flex-col items-end whitespace-nowrap">
+                    <span>{x.count} {x.count === 1 ? "plano" : "planos"}</span>
+                    <span className="text-xs text-muted">+{formatMoneyRound(x.mrrCents)}/mês</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <Empty>Nenhuma assinatura nova atribuída a barbeiros no período.</Empty>
+          )}
+        </Panel>
+
+        <Panel
+          title="Produtos mais vendidos"
+          className="flex-[999_1_480px]"
+          action={
+            <Link href={`/painel/produtos${qs}`} className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+              Vitrine <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          }
+        >
+          <ol className="flex flex-col divide-y divide-line-soft">
+            {products.slice(0, 5).map((p) => (
+              <li key={p.product.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                <span className="flex-1 font-semibold">{p.product.name}</span>
+                {p.lowStock ? <Badge tone="warn">Estoque baixo</Badge> : null}
+                <span className="w-16 text-right text-muted">{p.units} un.</span>
+                <span className="w-24 text-right font-semibold">{formatMoneyRound(p.revenueCents)}</span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function Suggestion({ href, count, title, detail }: { href: string; count: number; title: string; detail: string }) {
+  return (
+    <li>
+      <Link href={href} className="flex items-center gap-4 px-5 py-3.5 hover:bg-chip">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ink font-display text-white">{count}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-semibold">{title}</span>
+          <span className="truncate text-xs text-muted">{detail}</span>
+        </span>
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
+    </li>
+  );
+}

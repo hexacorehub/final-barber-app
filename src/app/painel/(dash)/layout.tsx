@@ -1,0 +1,57 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { MustacheMark } from "@/components/brand";
+import { getStore, loadSnapshot } from "@/server/data/store";
+import { hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
+import { leaveDashboard } from "../entrar/actions";
+import { OwnerNav } from "./owner-nav";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  if (!(await hasOwnerAccess())) redirect("/painel/entrar");
+  const s = await loadSnapshot();
+  const demo = getStore().mode === "demo";
+  const gated = passcodeConfigured();
+
+  return (
+    <div className="min-h-dvh bg-white">
+      <header className="bg-ink text-white">
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-1 px-5 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <MustacheMark color="#fff" />
+              <span className="font-display text-[19px] font-semibold tracking-[0.12em]">{s.shop.name}</span>
+              <span className="border-l border-[#3a3a3a] pl-3 text-[13px] text-[#bdbdbd]">Painel do dono</span>
+            </div>
+            <div className="flex items-center gap-1 text-[13px]">
+              <Link href="/inicio" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
+                Ver app do cliente
+              </Link>
+              {gated ? (
+                <form action={leaveDashboard}>
+                  <button type="submit" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
+                    Sair
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </div>
+          <OwnerNav />
+        </div>
+      </header>
+      {demo || !gated ? (
+        <div className="border-b border-line bg-chip">
+          <p className="mx-auto max-w-[1200px] px-5 py-2 text-[13px] text-ink-soft">
+            {demo ? "Dados de demonstração gerados automaticamente: barbeiros, unidades e planos são reais; clientes, atendimentos e valores avulsos são simulados." : null}
+            {demo && !gated ? " " : null}
+            {!gated ? "Painel sem código de acesso: defina PAINEL_PASSCODE antes de usar com dados reais." : null}
+          </p>
+        </div>
+      ) : null}
+      <main className="mx-auto flex max-w-[1200px] flex-col gap-6 px-5 pt-7 pb-16">{children}</main>
+      <footer className="mx-auto max-w-[1200px] px-5 pb-8 text-xs text-faint">Final Barber · gestão para barbearias</footer>
+    </div>
+  );
+}
