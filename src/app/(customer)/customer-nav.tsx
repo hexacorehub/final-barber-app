@@ -13,13 +13,20 @@ const ITEMS = [
   { href: "/conta", label: "Conta", Icon: UserRound },
 ];
 
-export function CustomerNav() {
+function useActive() {
   const path = usePathname();
+  return (href: string) =>
+    path === href || path.startsWith(`${href}/`) || (href === "/conta" && (path.startsWith("/galeria") || path.startsWith("/indique")));
+}
+
+/** Bottom tab bar on phones. */
+export function CustomerNav() {
+  const isActive = useActive();
   return (
-    <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur">
+    <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur md:hidden">
       <ul className="mx-auto grid max-w-md grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {ITEMS.map(({ href, label, Icon }) => {
-          const active = path === href || path.startsWith(`${href}/`) || (href === "/conta" && path.startsWith("/galeria"));
+          const active = isActive(href);
           return (
             <li key={href}>
               <Link
@@ -34,6 +41,28 @@ export function CustomerNav() {
           );
         })}
       </ul>
+    </nav>
+  );
+}
+
+/** Links in the header on larger screens. */
+export function CustomerTopNav() {
+  const isActive = useActive();
+  return (
+    <nav aria-label="Navegação principal" className="hidden items-center gap-1 md:flex">
+      {ITEMS.map(({ href, label }) => {
+        const active = isActive(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn("flex h-10 items-center rounded-lg px-3.5 text-sm", active ? "bg-ink font-semibold text-white" : "text-ink-soft hover:bg-chip")}
+          >
+            {label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

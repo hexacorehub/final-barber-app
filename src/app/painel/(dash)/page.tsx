@@ -32,7 +32,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const sellers = plansSoldByBarber(s, range).slice(0, 5);
   const products = productStats(s, range);
   const lowStock = products.filter((p) => p.lowStock && p.product.active);
-  const leads = s.leads.filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled"));
+  const leads = s.leads.filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.planId === l.planId && x.status !== "canceled"));
   const occupancy = barbers.length ? barbers.reduce((t, b) => t + b.occupancy, 0) / barbers.length : 0;
   const maxBarber = Math.max(...barbers.map((b) => b.totalCents), 1);
   const qs = range.id === "mes" ? "" : `?periodo=${range.id}`;
@@ -126,7 +126,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <Panel title="Indicações automáticas" className="flex-[1_1_320px]" note="O que o sistema sugere fazer agora">
           <ul className="flex flex-col divide-y divide-line-soft">
             <Suggestion href="/painel/clube#indicar" count={upsell.length} title="Clientes que economizariam no clube" detail={upsell[0] ? `Ex.: ${firstName(upsell[0].customer.name)} pagaria ${formatMoneyRound(upsell[0].monthlySavingCents)} a menos no ${upsell[0].plan.name.replace("Mister Club ", "")}` : "Ninguém no momento"} />
-            <Suggestion href="/painel/clube#interessados" count={leads.length} title="Pediram para assinar pelo app" detail="Confirme no WhatsApp e ative a cobrança" />
+            <Suggestion href="/painel/clube#interessados" count={leads.length} title="Pedidos de plano pelo app" detail={`${leads.filter((l) => l.kind === "upgrade").length} trocas para plano maior · confirme no WhatsApp`} />
             <Suggestion href="/painel/clube#risco" count={risk.length} title="Assinantes em risco" detail={`${risk.filter((r) => r.reason === "past_due").length} com pagamento recusado · ${risk.filter((r) => r.reason === "late").length} sumidos`} />
             <Suggestion href="/painel/produtos" count={lowStock.length} title="Produtos acabando" detail={lowStock.map((p) => p.product.name).slice(0, 2).join(", ") || "Estoque em dia"} />
           </ul>

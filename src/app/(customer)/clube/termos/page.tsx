@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Termos de uso" };
 
 export default function TermsPage() {
   return (
-    <div className="flex flex-col gap-4 px-5 pt-4">
+    <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 pt-4 md:px-0 md:pt-8">
       <Link href="/clube" className="flex min-h-11 items-center gap-1.5 self-start text-sm font-medium">
         <ArrowLeft size={18} aria-hidden="true" /> Planos
       </Link>

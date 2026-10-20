@@ -3,7 +3,8 @@ import { MessageCircle } from "lucide-react";
 import { DataTable, Empty, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
 import { Badge, Meter, Stat } from "@/components/ui";
 import { messages, whatsappMessage } from "@/components/whatsapp";
-import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, retentionRisk, upsellCandidates } from "@/domain/metrics";
+import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralStats, retentionRisk, upsellCandidates } from "@/domain/metrics";
+import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, monthShort, shortDate } from "@/domain/time";
 import { loadSnapshot } from "@/server/data/store";
@@ -25,9 +26,14 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
   const customers = new Map(s.customers.map((c) => [c.id, c]));
   const plansById = new Map(s.plans.map((p) => [p.id, p]));
   const leads = s.leads
-    .filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled"))
+    .filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.planId === l.planId && x.status !== "canceled"))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const fromApp = s.subscriptions.filter((x) => x.channel === "app" && x.status !== "canceled").length;
+  const referrals = referralStats(s, range);
+  const currentPlanOf = (customerId: string) => {
+    const sub = s.subscriptions.find((x) => x.customerId === customerId && x.status !== "canceled");
+    return sub ? plansById.get(sub.planId) : undefined;
+  };
 
   return (
     <>
@@ -35,7 +41,7 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Receita recorrente" value={formatMoneyCompact(totals.mrrCents)} hint="por mês" />
-        <Stat label="Assinantes" value={formatInt(totals.members)} hint={`${totals.dependents} dependentes · ${totals.paused} pausados`} />
+        <Stat label="Assinantes" value={formatInt(totals.members)} hint={`${totals.dependents} em contas familiares · ${totals.paused} pausados`} />
         <Stat label="Entradas e saídas" value={`+${totals.newInRange} / −${totals.canceledInRange}`} hint="no período" />
         <Stat label="Pagamentos recusados" value={formatInt(totals.pastDue)} hint={`${formatMoneyRound(totals.pastDueCents)} a recuperar`} />
         <Stat label="Vendidos pelo app" value={formatInt(fromApp)} hint="assinaturas ativas" />
@@ -124,22 +130,32 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
 
       <div className="flex flex-wrap gap-6">
         <div id="interessados" className="flex-[1_1_380px] scroll-mt-6">
-          <Panel title="Interessados pelo app" note="Pediram para assinar; confirme e ative a cobrança">
+          <Panel title="Pedidos pelo app" note="Novas assinaturas e trocas de plano; confirme e ative a cobrança">
             {leads.length ? (
               <ul className="flex flex-col divide-y divide-line-soft">
                 {leads.map((l) => {
                   const c = customers.get(l.customerId);
+                  const holder = customers.get(l.requestedById);
                   const plan = plansById.get(l.planId);
                   if (!c || !plan) return null;
+                  const forOther = holder && holder.id !== c.id;
+                  const from = currentPlanOf(c.id);
+                  const referrer = l.referrerCustomerId ? customers.get(l.referrerCustomerId) : undefined;
                   return (
                     <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="font-semibold">{c.name}</span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="flex flex-wrap items-center gap-1.5 font-semibold">
+                          {c.name}
+                          {l.kind === "upgrade" ? <Badge tone="ok">Troca de plano</Badge> : null}
+                          {referrer ? <Badge>Indicado por {referrer.name.split(" ")[0]}</Badge> : null}
+                        </span>
                         <span className="text-xs text-muted">
+                          {l.kind === "upgrade" && from ? `${short(from.name)} → ` : ""}
                           {short(plan.name)} · {shortDate(dayKey(l.createdAt))}
+                          {forOther ? ` · pedido pelo titular ${holder.name.split(" ")[0]}${c.relationship ? ` (${RELATIONSHIP_LABEL[c.relationship].toLowerCase()})` : ""}` : ""}
                         </span>
                       </span>
-                      <WhatsAppLink href={whatsappMessage(c.phone, messages.lead(c.name, short(plan.name)))} label="Confirmar" />
+                      <WhatsAppLink href={whatsappMessage((forOther ? holder : c).phone, messages.lead((forOther ? holder : c).name, short(plan.name)))} label="Confirmar" />
                     </li>
                   );
                 })}
@@ -163,6 +179,41 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
             </ol>
           ) : (
             <Empty>Nenhuma venda atribuída no período.</Empty>
+          )}
+        </Panel>
+      </div>
+
+      <div id="indicacoes" className="scroll-mt-6">
+        <Panel title="Programa de indicação" note="Cada amigo que assina pelo convite vale 50% numa próxima mensalidade de quem indicou">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px border-b border-line-soft bg-line-soft">
+            {[
+              ["Novos por indicação", `${referrals.joinedInRange}`, "no período"],
+              ["Indicados ativos", `${referrals.activeReferred}`, `${formatMoneyRound(referrals.mrrFromReferralsCents)}/mês`],
+              ["Descontos concedidos", formatMoneyRound(referrals.discountsInRangeCents), "no período"],
+              ["Convites aguardando", `${referrals.pendingLeads}`, "pedidos pelo app"],
+            ].map(([label, value, hint]) => (
+              <div key={label} className="flex flex-col gap-1 bg-white px-5 py-4">
+                <span className="text-[13px] text-muted">{label}</span>
+                <span className="font-display text-2xl tracking-normal">{value}</span>
+                <span className="text-xs text-muted">{hint}</span>
+              </div>
+            ))}
+          </div>
+          {referrals.topReferrers.length ? (
+            <ol className="flex flex-col divide-y divide-line-soft">
+              {referrals.topReferrers.map((x, i) => (
+                <li key={x.customer.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                  <span className="w-5 font-display text-muted">{i + 1}</span>
+                  <span className="flex-1 font-semibold">{x.customer.name}</span>
+                  <span>
+                    {x.count} {x.count === 1 ? "amigo" : "amigos"}
+                  </span>
+                  <span className="w-28 text-right text-muted">{formatMoneyRound(x.mrrCents)}/mês</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <Empty>Nenhuma assinatura por indicação ainda.</Empty>
           )}
         </Panel>
       </div>

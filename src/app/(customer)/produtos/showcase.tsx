@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { formatMoney } from "@/domain/money";
 import type { Product, ProductCategory } from "@/domain/types";
-import { Badge, Placeholder, buttonStyles, cn } from "@/components/ui";
+import { Photo } from "@/components/photo";
+import { Badge, buttonStyles, cn } from "@/components/ui";
 import { reserveProduct } from "./actions";
 
 const FILTERS: { id: ProductCategory | "all"; label: string }[] = [
@@ -35,7 +36,7 @@ export function Showcase({ products, bestSellers }: { products: Product[]; bestS
 
   return (
     <>
-      <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="group" aria-label="Filtrar por categoria">
+      <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0" role="group" aria-label="Filtrar por categoria">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -48,14 +49,14 @@ export function Showcase({ products, bestSellers }: { products: Product[]; bestS
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
         {visible.map((p) => {
           const isReserved = reserved.includes(p.id);
           const soldOut = p.stock <= 0;
           return (
             <article key={p.id} id={p.id} className="flex scroll-mt-20 flex-col gap-2 rounded-2xl border border-line p-3">
               <div className="relative">
-                <Placeholder label="Foto do produto" className="h-32 rounded-xl" />
+                <Photo src={p.photoUrl} alt={p.name} className="h-36 w-full rounded-xl md:h-48" fallback="Foto do produto" />
                 <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
                   {bestSellers.includes(p.id) ? <Badge tone="dark">Mais vendido</Badge> : null}
                   {!soldOut && p.stock <= p.minStock ? <Badge tone="warn">Últimas unidades</Badge> : null}

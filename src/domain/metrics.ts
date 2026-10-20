@@ -1,4 +1,4 @@
-import type { Appointment, Barber, Customer, Plan, Product, Snapshot, Subscription } from "./types";
+import type { Appointment, Barber, ClubCoverage, Customer, Plan, Product, Snapshot, Subscription } from "./types";
 import { addDays, addMonths, dayKey, daysBetween, daysInMonth, weekdayOf } from "./time";
 
 /**
@@ -47,7 +47,9 @@ export interface ClubCharge {
   subscriptionId: string;
   planId: string;
   day: string;
+  /** What was actually charged (list price minus any referral discount). */
   amountCents: number;
+  discountCents: number;
 }
 
 /**
@@ -58,21 +60,150 @@ export interface ClubCharge {
 export function clubCharges(s: Snapshot, r: { from: string; to: string }): ClubCharge[] {
   const plans = new Map(s.plans.map((p) => [p.id, p]));
   const today = dayKey(s.now);
+  const discounts = referralDiscounts(s);
   const out: ClubCharge[] = [];
   for (const sub of s.subscriptions) {
     const plan = plans.get(sub.planId);
     if (!plan) continue;
-    const latestCharge = lastBillingDay(sub.billingDay, today);
     for (let m = r.from.slice(0, 7); m <= r.to.slice(0, 7); m = addMonths(m, 1)) {
-      const day = `${m}-${String(Math.min(sub.billingDay, daysInMonth(m))).padStart(2, "0")}`;
+      const day = billingDayIn(sub.billingDay, m);
       if (day < r.from || day > r.to || day > today) continue;
-      if (!activeOn(sub, day)) continue;
-      if (sub.status === "paused" && day >= addDays(today, -30)) continue;
-      if (sub.status === "past_due" && day === latestCharge) continue;
-      out.push({ subscriptionId: sub.id, planId: plan.id, day, amountCents: plan.priceCents });
+      if (!charged(sub, day, today)) continue;
+      const discountCents = discounts.get(sub.id)?.get(day) ?? 0;
+      out.push({ subscriptionId: sub.id, planId: plan.id, day, amountCents: plan.priceCents - discountCents, discountCents });
     }
   }
   return out;
+}
+
+function billingDayIn(billingDay: number, month: string): string {
+  return `${month}-${String(Math.min(billingDay, daysInMonth(month))).padStart(2, "0")}`;
+}
+
+/** Whether a subscription is (or was) charged on a billing day. */
+function charged(sub: Subscription, day: string, today: string): boolean {
+  if (!activeOn(sub, day)) return false;
+  if (day > today) return sub.status === "active";
+  if (sub.status === "paused" && day >= addDays(today, -30)) return false;
+  if (sub.status === "past_due" && day === lastBillingDay(sub.billingDay, today)) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// Referral program: each friend who subscribes with your invite gives 50% off one of your
+// next monthly fees (the first one after they joined that has no credit yet).
+
+export const REFERRAL_DISCOUNT = 0.5;
+const FUTURE_MONTHS = 3;
+const discountCache = new WeakMap<Snapshot, Map<string, Map<string, number>>>();
+
+/** subscriptionId → billing day → discount in cents, past and for the next months. */
+export function referralDiscounts(s: Snapshot): Map<string, Map<string, number>> {
+  const cached = discountCache.get(s);
+  if (cached) return cached;
+  const out = new Map<string, Map<string, number>>();
+  const today = dayKey(s.now);
+  const plans = new Map(s.plans.map((p) => [p.id, p]));
+  const earned = new Map<string, string[]>();
+  for (const x of s.subscriptions) {
+    if (!x.referredByCustomerId) continue;
+    (earned.get(x.referredByCustomerId) ?? earned.set(x.referredByCustomerId, []).get(x.referredByCustomerId)!).push(dayKey(x.startedAt));
+  }
+  for (const [referrerId, dates] of earned) {
+    const own = ownSubscription(s, referrerId);
+    const plan = own && plans.get(own.planId);
+    if (!own || !plan) continue;
+    const credits = [...dates].sort();
+    let next = 0;
+    const lastMonth = addMonths(today.slice(0, 7), FUTURE_MONTHS);
+    for (let m = dayKey(own.startedAt).slice(0, 7); m <= lastMonth && next < credits.length; m = addMonths(m, 1)) {
+      const day = billingDayIn(own.billingDay, m);
+      if (!charged(own, day, today) || credits[next] >= day) continue;
+      (out.get(own.id) ?? out.set(own.id, new Map()).get(own.id)!).set(day, Math.round(plan.priceCents * REFERRAL_DISCOUNT));
+      next++;
+    }
+  }
+  discountCache.set(s, out);
+  return out;
+}
+
+/** The referrer's own plan (not one they pay for someone else). */
+function ownSubscription(s: Snapshot, customerId: string): Subscription | null {
+  return s.subscriptions.find((x) => x.customerId === customerId && x.status !== "canceled") ?? null;
+}
+
+export interface ReferralSummary {
+  code: string;
+  joined: { customer: Customer; plan: Plan; since: string }[];
+  pending: { customer: Customer; plan: Plan; since: string }[];
+  usedCents: number;
+  next: { day: string; discountCents: number; priceCents: number } | null;
+  /** Credits earned but not scheduled yet (no plan of their own, or months ahead). */
+  waiting: number;
+}
+
+export function referralSummary(s: Snapshot, customerId: string): ReferralSummary | null {
+  const me = s.customers.find((c) => c.id === customerId);
+  if (!me) return null;
+  const today = dayKey(s.now);
+  const customers = new Map(s.customers.map((c) => [c.id, c]));
+  const plans = new Map(s.plans.map((p) => [p.id, p]));
+  const joined = s.subscriptions
+    .filter((x) => x.referredByCustomerId === customerId)
+    .map((x) => ({ customer: customers.get(x.customerId)!, plan: plans.get(x.planId)!, since: dayKey(x.startedAt) }))
+    .filter((x) => x.customer && x.plan)
+    .sort((a, b) => b.since.localeCompare(a.since));
+  const pending = s.leads
+    .filter((l) => l.referrerCustomerId === customerId && !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled"))
+    .map((l) => ({ customer: customers.get(l.customerId)!, plan: plans.get(l.planId)!, since: dayKey(l.createdAt) }))
+    .filter((x) => x.customer && x.plan);
+  const own = ownSubscription(s, customerId);
+  const schedule = own ? [...(referralDiscounts(s).get(own.id) ?? new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b)) : [];
+  const used = schedule.filter(([day]) => day <= today);
+  const upcoming = schedule.find(([day]) => day > today);
+  const ownPlan = own ? plans.get(own.planId) : null;
+  return {
+    code: me.referralCode,
+    joined,
+    pending,
+    usedCents: used.reduce((t, [, v]) => t + v, 0),
+    next: upcoming && ownPlan ? { day: upcoming[0], discountCents: upcoming[1], priceCents: ownPlan.priceCents } : null,
+    waiting: Math.max(0, joined.length - schedule.length),
+  };
+}
+
+export interface ReferralStats {
+  joinedInRange: number;
+  activeReferred: number;
+  mrrFromReferralsCents: number;
+  discountsInRangeCents: number;
+  pendingLeads: number;
+  topReferrers: { customer: Customer; count: number; mrrCents: number }[];
+}
+
+export function referralStats(s: Snapshot, r: { from: string; to: string }): ReferralStats {
+  const plans = new Map(s.plans.map((p) => [p.id, p]));
+  const customers = new Map(s.customers.map((c) => [c.id, c]));
+  const referred = s.subscriptions.filter((x) => x.referredByCustomerId);
+  const active = referred.filter((x) => x.status === "active");
+  const byReferrer = new Map<string, Subscription[]>();
+  for (const x of referred) (byReferrer.get(x.referredByCustomerId!) ?? byReferrer.set(x.referredByCustomerId!, []).get(x.referredByCustomerId!)!).push(x);
+  return {
+    joinedInRange: referred.filter((x) => inRange(x.startedAt, r)).length,
+    activeReferred: active.length,
+    mrrFromReferralsCents: active.reduce((t, x) => t + (plans.get(x.planId)?.priceCents ?? 0), 0),
+    discountsInRangeCents: clubCharges(s, r).reduce((t, c) => t + c.discountCents, 0),
+    pendingLeads: s.leads.filter((l) => l.referrerCustomerId && !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled")).length,
+    topReferrers: [...byReferrer.entries()]
+      .map(([id, subs]) => ({
+        customer: customers.get(id)!,
+        count: subs.length,
+        mrrCents: subs.filter((x) => x.status === "active").reduce((t, x) => t + (plans.get(x.planId)?.priceCents ?? 0), 0),
+      }))
+      .filter((x) => x.customer)
+      .sort((a, b) => b.count - a.count || b.mrrCents - a.mrrCents)
+      .slice(0, 8),
+  };
 }
 
 function lastBillingDay(billingDay: number, today: string): string {
@@ -429,15 +560,16 @@ export function upcomingClubCharges(s: Snapshot, days = 30): { count: number; to
   const today = dayKey(s.now);
   const end = addDays(today, days);
   const plans = new Map(s.plans.map((p) => [p.id, p]));
+  const discounts = referralDiscounts(s);
   let count = 0;
   let totalCents = 0;
   for (const sub of s.subscriptions) {
     if (sub.status !== "active") continue;
     for (let m = today.slice(0, 7); m <= end.slice(0, 7); m = addMonths(m, 1)) {
-      const day = `${m}-${String(Math.min(sub.billingDay, daysInMonth(m))).padStart(2, "0")}`;
+      const day = billingDayIn(sub.billingDay, m);
       if (day > today && day <= end) {
         count++;
-        totalCents += plans.get(sub.planId)?.priceCents ?? 0;
+        totalCents += (plans.get(sub.planId)?.priceCents ?? 0) - (discounts.get(sub.id)?.get(day) ?? 0);
       }
     }
   }
@@ -460,6 +592,8 @@ export interface CustomerSummary {
   /** Value of club-covered services in the last 12 months minus what the plans cost. */
   savedLast12MonthsCents: number;
   nextChargeDay: string | null;
+  /** Referral discount on the holder's own next fee. */
+  nextChargeDiscountCents: number;
   monthlyTotalCents: number;
 }
 
@@ -494,6 +628,8 @@ export function customerSummary(s: Snapshot, customerId: string): CustomerSummar
     (c) => c.amountCents,
   );
 
+  const nextChargeDay = subscription && subscription.status === "active" ? nextBillingDay(subscription.billingDay, today) : null;
+
   return {
     customer,
     subscription,
@@ -505,7 +641,8 @@ export function customerSummary(s: Snapshot, customerId: string): CustomerSummar
     upcoming,
     history,
     savedLast12MonthsCents: covered - paid,
-    nextChargeDay: subscription && subscription.status === "active" ? nextBillingDay(subscription.billingDay, today) : null,
+    nextChargeDay,
+    nextChargeDiscountCents: subscription && nextChargeDay ? (referralDiscounts(s).get(subscription.id)?.get(nextChargeDay) ?? 0) : 0,
     monthlyTotalCents: (plan?.priceCents ?? 0) + sum(dependents, (d) => d.plan.priceCents),
   };
 }
@@ -535,6 +672,50 @@ export function quotePlans(plans: Plan[], haircutCents: number, beardCents: numb
   const fitting = plans.filter((p) => needs.every((n) => p.covers.includes(n))).sort((a, b) => a.priceCents - b.priceCents);
   const plan = fitting[0];
   return plan ? { perVisitCents, best: { plan, perVisitCents, savingCents: perVisitCents - plan.priceCents } } : { perVisitCents, best: null };
+}
+
+export interface PlanComparisonRow {
+  plan: Plan;
+  /** Visits the plan does not cover, paid per visit on top of the fee. */
+  extraCents: number;
+  totalCents: number;
+  /** Against paying every visit. */
+  savingCents: number;
+  coversAll: boolean;
+}
+
+/** Every plan priced for the customer's habits: fee + what it leaves out, versus paying per visit. */
+export function comparePlans(plans: Plan[], haircutCents: number, beardCents: number, haircuts: number, beards: number): { perVisitCents: number; rows: PlanComparisonRow[]; bestId: string | null } {
+  const perVisitCents = haircuts * haircutCents + beards * beardCents;
+  const rows = [...plans]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((plan) => {
+      const extraCents = (plan.covers.includes("haircut") ? 0 : haircuts * haircutCents) + (plan.covers.includes("beard") ? 0 : beards * beardCents);
+      const totalCents = plan.priceCents + extraCents;
+      return {
+        plan,
+        extraCents,
+        totalCents,
+        savingCents: perVisitCents - totalCents,
+        coversAll: (haircuts === 0 || plan.covers.includes("haircut")) && (beards === 0 || plan.covers.includes("beard")),
+      };
+    });
+  const best = rows.filter((r) => r.savingCents > 0).sort((a, b) => a.totalCents - b.totalCents)[0];
+  return { perVisitCents, rows, bestId: best?.plan.id ?? null };
+}
+
+export interface UpgradeOption {
+  plan: Plan;
+  deltaCents: number;
+  adds: ClubCoverage[];
+}
+
+/** Bigger plans for someone on `current`: same or more coverage, higher fee, cheapest first. */
+export function upgradeOptions(plans: Plan[], current: Plan): UpgradeOption[] {
+  return plans
+    .filter((p) => p.id !== current.id && p.priceCents > current.priceCents && current.covers.every((c) => p.covers.includes(c)))
+    .map((plan) => ({ plan, deltaCents: plan.priceCents - current.priceCents, adds: plan.covers.filter((c) => !current.covers.includes(c)) }))
+    .sort((a, b) => b.adds.length - a.adds.length || a.deltaCents - b.deltaCents);
 }
 
 // ---------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { addDays, dayKey, localParts, shortDate, weekdayOf, weekdayShort } from "@/domain/time";
+import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { BOOKING_DAYS, bookablePeople, bookingUnits, busyMap } from "@/server/booking";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
@@ -32,7 +33,7 @@ export default async function BookingPage() {
       id: p.id,
       firstName: p.name.split(" ")[0],
       label: p.isSelf ? "Eu" : p.name.split(" ")[0],
-      sub: p.isSelf ? p.name.split(" ")[0] : "Dependente",
+      sub: p.isSelf ? p.name.split(" ")[0] : p.relationship ? RELATIONSHIP_LABEL[p.relationship] : "Na sua conta",
       plan: p.plan,
     })),
     services: s.services

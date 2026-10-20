@@ -1,6 +1,8 @@
-import type { Appointment, Customer, PlanLead, ProductReservation, ProductSale, Snapshot, Subscription } from "@/domain/types";
+import type { Appointment, Customer, GalleryPhoto, PlanLead, ProductReservation, ProductSale, Relationship, Snapshot, Subscription } from "@/domain/types";
 import { addDays, dayKey, fromLocal, localParts, weekdayOf } from "@/domain/time";
 import { BARBERS, PLANS, PRODUCTS, SERVICES, SHOP, UNITS } from "./catalog";
+import { GALLERY_PAIRS } from "./photos";
+import { referralCodeFor } from "@/domain/household";
 
 /**
  * Deterministic demo history for the shop: ~800 customers, the club members, six months
@@ -10,6 +12,10 @@ import { BARBERS, PLANS, PRODUCTS, SERVICES, SHOP, UNITS } from "./catalog";
 
 export const DEMO_CUSTOMER_ID = "cust-rafael";
 export const DEMO_DEPENDENT_ID = "cust-pedro";
+export const DEMO_FATHER_IN_LAW_ID = "cust-antonio";
+/** Everyone in the demo customer's account. */
+export const DEMO_HOUSEHOLD_IDS = [DEMO_CUSTOMER_ID, DEMO_DEPENDENT_ID, DEMO_FATHER_IN_LAW_ID];
+
 
 const HISTORY_DAYS = 185;
 const FUTURE_DAYS = 7;
@@ -120,9 +126,33 @@ export function buildDemoSnapshot(now: Date): Snapshot {
   const barbersOfUnit = (unitId: string) => activeBarbers.filter((b) => b.unitId === unitId).map((b) => b.id);
 
   // ---------- customers and subscriptions ----------
+  const holderFields = (name: string, seed: number) => ({ holderId: null, relationship: null, minor: false, referralCode: referralCodeFor(name, seed) });
   customers.push(
-    { id: DEMO_CUSTOMER_ID, name: "Rafael Lima", phone: "(11) 98888-1234", cycleDays: 14, preferredBarberId: "barber-bigode", createdAt: iso(addDays(today, -400), 600) },
-    { id: DEMO_DEPENDENT_ID, name: "Pedro Lima", phone: "(11) 98888-1234", cycleDays: 14, preferredBarberId: "barber-markos", createdAt: iso(addDays(today, -240), 600) },
+    { id: DEMO_CUSTOMER_ID, name: "Rafael Lima", phone: "(11) 98888-1234", cycleDays: 14, preferredBarberId: "barber-bigode", createdAt: iso(addDays(today, -400), 600), ...holderFields("Rafael", 7021) },
+    {
+      id: DEMO_DEPENDENT_ID,
+      name: "Pedro Lima",
+      phone: "(11) 98888-1234",
+      cycleDays: 14,
+      preferredBarberId: "barber-markos",
+      createdAt: iso(addDays(today, -240), 600),
+      holderId: DEMO_CUSTOMER_ID,
+      relationship: "child",
+      minor: true,
+      referralCode: referralCodeFor("Pedro", 7022),
+    },
+    {
+      id: DEMO_FATHER_IN_LAW_ID,
+      name: "Antônio Ferraz",
+      phone: "(11) 97777-5678",
+      cycleDays: 21,
+      preferredBarberId: "barber-herbert",
+      createdAt: iso(addDays(today, -60), 600),
+      holderId: DEMO_CUSTOMER_ID,
+      relationship: "parent_in_law",
+      minor: false,
+      referralCode: referralCodeFor("Antônio", 7023),
+    },
   );
   subscriptions.push(
     {
@@ -136,6 +166,7 @@ export function buildDemoSnapshot(now: Date): Snapshot {
       billingDay: 5,
       soldByBarberId: "barber-bigode",
       channel: "counter",
+      referredByCustomerId: null,
     },
     {
       id: "sub-pedro",
@@ -148,19 +179,35 @@ export function buildDemoSnapshot(now: Date): Snapshot {
       billingDay: 5,
       soldByBarberId: "barber-bigode",
       channel: "counter",
+      referredByCustomerId: null,
+    },
+    {
+      id: "sub-antonio",
+      customerId: DEMO_FATHER_IN_LAW_ID,
+      payerCustomerId: DEMO_CUSTOMER_ID,
+      planId: "plan-beard-plus",
+      status: "active",
+      startedAt: iso(addDays(today, -58), 600),
+      canceledAt: null,
+      billingDay: 5,
+      soldByBarberId: "barber-herbert",
+      channel: "app",
+      referredByCustomerId: null,
     },
   );
 
   const newCustomer = (n: number, cycle: readonly [number, number]): Customer => {
     const unit = r.chance(0.55) ? "unit-chacara" : "unit-guarapiranga";
     const preferred = r.chance(0.08) ? FORMER_BARBER : r.pick(barbersOfUnit(unit));
+    const name = `${r.pick(FIRST)} ${r.pick(LAST)}`;
     return {
       id: `cust-${String(n).padStart(4, "0")}`,
-      name: `${r.pick(FIRST)} ${r.pick(LAST)}`,
+      name,
       phone: phone(r),
       cycleDays: r.int(cycle[0], cycle[1]),
       preferredBarberId: preferred,
       createdAt: iso(addDays(today, -r.int(30, 700)), 600),
+      ...holderFields(name, n),
     };
   };
 
@@ -191,15 +238,45 @@ export function buildDemoSnapshot(now: Date): Snapshot {
         ["whatsapp", 25],
         ["app", 15],
       ] as const),
+      referredByCustomerId: null,
     });
     c.createdAt = c.createdAt < iso(started, 0) ? c.createdAt : iso(started, 0);
   }
-  // Families: some members are paid by another member.
+  // Families: some members are managed and paid by another member (the holder).
   const memberSubs = subscriptions.filter((s) => s.id.startsWith("sub-0"));
+  const customerById = new Map(customers.map((c) => [c.id, c]));
+  const RELATIONS: readonly (readonly [Relationship, number])[] = [
+    ["child", 6],
+    ["spouse", 3],
+    ["parent_in_law", 1],
+    ["parent", 1],
+    ["sibling", 1],
+  ];
   for (let i = 0; i < 28; i++) {
     const dependent = memberSubs[r.int(0, memberSubs.length - 1)];
-    const payer = memberSubs[r.int(0, memberSubs.length - 1)];
-    if (dependent !== payer && dependent.payerCustomerId === dependent.customerId) dependent.payerCustomerId = payer.customerId;
+    const holder = memberSubs[r.int(0, memberSubs.length - 1)];
+    const dep = customerById.get(dependent.customerId)!;
+    const hol = customerById.get(holder.customerId)!;
+    if (dependent === holder || dep.holderId || hol.holderId || customers.some((c) => c.holderId === dep.id)) continue;
+    dependent.payerCustomerId = hol.id;
+    dep.holderId = hol.id;
+    dep.relationship = r.weighted(RELATIONS);
+    dep.minor = dep.relationship === "child" && r.chance(0.7);
+  }
+  // Referral program: some members came through another member's invite.
+  const sortedMembers = [...memberSubs].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  for (const sub of sortedMembers.slice(40)) {
+    if (!r.chance(0.12)) continue;
+    const referrer = sortedMembers[r.int(0, 39)];
+    if (referrer.customerId !== sub.customerId) sub.referredByCustomerId = referrer.customerId;
+  }
+  // The demo customer brought a friend 10 days ago: 50% off his next fee.
+  const friend = sortedMembers.find((x) => x.startedAt >= iso(addDays(today, -20), 0) && !x.referredByCustomerId && x.payerCustomerId === x.customerId);
+  if (friend) {
+    friend.referredByCustomerId = DEMO_CUSTOMER_ID;
+    friend.startedAt = iso(addDays(today, -10), 660);
+    friend.billingDay = Math.min(28, Number(addDays(today, -10).slice(8)));
+    friend.status = "active";
   }
   // Former members, canceled in the last six months.
   for (let i = 0; i < 95; i++) {
@@ -218,6 +295,7 @@ export function buildDemoSnapshot(now: Date): Snapshot {
       billingDay: Math.min(28, Number(started.slice(8))),
       soldByBarberId: r.chance(0.6) ? r.pick(activeBarbers).id : null,
       channel: r.chance(0.7) ? "counter" : "whatsapp",
+      referredByCustomerId: null,
     });
   }
   // Walk-in customers.
@@ -262,6 +340,7 @@ export function buildDemoSnapshot(now: Date): Snapshot {
     }
     if (r.chance(0.12)) serviceIds.push(r.weighted(EXTRAS));
     if (c.id === DEMO_DEPENDENT_ID) serviceIds = ["svc-haircut"];
+    if (c.id === DEMO_FATHER_IN_LAW_ID) serviceIds = ["svc-beard"];
     if (c.id === DEMO_CUSTOMER_ID) serviceIds = ["svc-haircut", "svc-beard"];
 
     const formerLeft = addDays(today, -FORMER_LEFT_DAYS_AGO);
@@ -292,7 +371,7 @@ export function buildDemoSnapshot(now: Date): Snapshot {
     } else {
       status = "scheduled";
     }
-    if (c.id === DEMO_CUSTOMER_ID || c.id === DEMO_DEPENDENT_ID) status = isPast ? "completed" : "scheduled";
+    if (DEMO_HOUSEHOLD_IDS.includes(c.id)) status = isPast ? "completed" : "scheduled";
 
     const appt: Appointment = {
       id: `appt-${String(apptSeq++).padStart(6, "0")}`,
@@ -333,14 +412,16 @@ export function buildDemoSnapshot(now: Date): Snapshot {
   };
 
   // Demo family: Rafael and Pedro come together every 14 days; last visit 12 days ago.
+  // His father-in-law Antônio joined two months ago and comes every three weeks.
   for (let k = 16; k >= 0; k--) {
     const day = addDays(today, -12 - 14 * k);
     const group = `grp-rafael-${k}`;
     pushAppointment(customers[0], day, 16 * 60, group, "barber-bigode");
     pushAppointment(customers[1], day, 16 * 60, group, "barber-markos");
   }
+  for (const daysAgo of [56, 35, 14]) pushAppointment(customers[2], addDays(today, -daysAgo), 10 * 60, null, "barber-herbert");
 
-  for (const c of customers.slice(2)) {
+  for (const c of customers.slice(3)) {
     const sub = subsByCustomer.get(c.id);
     const preferredMinute = r.weighted([
       [9 * 60 + 30, 2],
@@ -378,9 +459,26 @@ export function buildDemoSnapshot(now: Date): Snapshot {
   const leads: PlanLead[] = Array.from({ length: 7 }, (_, i) => ({
     id: `lead-${i + 1}`,
     customerId: walkIns[i * 13].id,
+    requestedById: walkIns[i * 13].id,
     planId: r.weighted(PLAN_WEIGHTS),
+    kind: "new" as const,
+    // The first one came from the demo customer's invite and is still pending.
+    referrerCustomerId: i === 0 ? DEMO_CUSTOMER_ID : null,
     createdAt: iso(addDays(today, -r.int(0, 12)), r.int(600, 1200)),
   }));
+  // A member asking to move up a tier.
+  const upgrader = memberSubs.find((x) => x.planId === "plan-haircut-plus" && x.status === "active");
+  if (upgrader) {
+    leads.push({
+      id: "lead-upgrade-1",
+      customerId: upgrader.customerId,
+      requestedById: upgrader.payerCustomerId,
+      planId: "plan-cb-plus",
+      kind: "upgrade",
+      referrerCustomerId: null,
+      createdAt: iso(addDays(today, -1), 1100),
+    });
+  }
   const reservations: ProductReservation[] = Array.from({ length: 4 }, (_, i) => ({
     id: `res-${i + 1}`,
     productId: r.weighted(PRODUCT_WEIGHTS),
@@ -389,6 +487,16 @@ export function buildDemoSnapshot(now: Date): Snapshot {
     status: "reserved",
     createdAt: iso(addDays(today, -r.int(0, 4)), r.int(600, 1200)),
   }));
+
+  // Before/after photos for the demo customer's latest visits.
+  const latest = appointments
+    .filter((a) => a.customerId === DEMO_CUSTOMER_ID && a.status === "completed")
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
+    .slice(0, GALLERY_PAIRS.length);
+  const galleryPhotos: GalleryPhoto[] = latest.flatMap((a, i) => [
+    { id: `photo-${a.id}-before`, customerId: DEMO_CUSTOMER_ID, appointmentId: a.id, side: "before" as const, url: GALLERY_PAIRS[i].before, createdAt: a.startsAt },
+    { id: `photo-${a.id}-after`, customerId: DEMO_CUSTOMER_ID, appointmentId: a.id, side: "after" as const, url: GALLERY_PAIRS[i].after, createdAt: a.startsAt },
+  ]);
 
   appointments.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   productSales.sort((a, b) => a.soldAt.localeCompare(b.soldAt));
@@ -406,6 +514,7 @@ export function buildDemoSnapshot(now: Date): Snapshot {
     productSales,
     reservations,
     leads,
+    galleryPhotos,
     now: now.toISOString(),
   };
 }

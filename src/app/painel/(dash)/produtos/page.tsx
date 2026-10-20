@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DataTable, Empty, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
+import { Photo } from "@/components/photo";
 import { Badge, Stat } from "@/components/ui";
 import { periodRange, productStats } from "@/domain/metrics";
 import { formatInt, formatMoney, formatMoneyRound, formatPercent } from "@/domain/money";
@@ -59,7 +60,12 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
         >
           {stats.map((p) => (
             <tr key={p.product.id}>
-              <td className="font-semibold">{p.product.name}</td>
+              <td>
+                <span className="flex items-center gap-3">
+                  <Photo src={p.product.photoUrl} alt="" className="size-10 shrink-0 rounded-lg" fallback="" />
+                  <span className="font-semibold">{p.product.name}</span>
+                </span>
+              </td>
               <td>{CATEGORY[p.product.category]}</td>
               <td className="text-right">{formatMoney(p.product.priceCents)}</td>
               <td className="text-right">

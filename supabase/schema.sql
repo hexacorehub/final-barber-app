@@ -4,6 +4,12 @@
 --
 -- The app talks to these tables only from the server, with the secret key, so RLS is
 -- enabled with no policies: nothing is reachable with the public (anon/publishable) key.
+--
+-- Rodou uma versão anterior deste arquivo? Como ainda não há dados reais, o mais simples é
+-- apagar as tabelas e rodar tudo de novo (descomente as linhas abaixo uma vez):
+-- drop table if exists gallery_photos, plan_leads, product_reservations, product_sales,
+--   appointments, subscriptions, customers, products, plans, services, barbers, units,
+--   shop_settings cascade;
 
 create table if not exists shop_settings (
   id int primary key default 1 check (id = 1),
@@ -11,7 +17,10 @@ create table if not exists shop_settings (
   tagline text not null,
   instagram text not null,
   member_count_label text not null,
-  rating_label text not null
+  rating_label text not null,
+  cover_photo_url text,
+  -- [{"url": "...", "caption": "...", "barberId": "barber-..." | null}]
+  portfolio jsonb not null default '[]'
 );
 
 create table if not exists units (
@@ -19,6 +28,7 @@ create table if not exists units (
   name text not null,
   address text not null,
   phone text,
+  photo_url text,
   -- 7 entries, Sunday first: {"open": 540, "close": 1200} in minutes, or null when closed.
   hours jsonb not null
 );
@@ -62,7 +72,8 @@ create table if not exists products (
   cost_cents int not null default 0,
   stock int not null default 0,
   min_stock int not null default 0,
-  active boolean not null default true
+  active boolean not null default true,
+  photo_url text
 );
 
 create table if not exists customers (
@@ -71,8 +82,15 @@ create table if not exists customers (
   phone text not null,
   cycle_days int not null default 30,
   preferred_barber_id text references barbers(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Account holder ("titular") who manages this person; null = this customer is a holder.
+  holder_id text references customers(id),
+  relationship text check (relationship in ('child','spouse','parent','parent_in_law','sibling','other')),
+  minor boolean not null default false,
+  referral_code text not null unique,
+  check ((holder_id is null) = (relationship is null))
 );
+create index if not exists customers_holder_idx on customers (holder_id);
 
 create table if not exists subscriptions (
   id text primary key,
@@ -84,8 +102,12 @@ create table if not exists subscriptions (
   canceled_at timestamptz,
   billing_day int not null check (billing_day between 1 and 28),
   sold_by_barber_id text references barbers(id),
-  channel text not null check (channel in ('app','counter','whatsapp'))
+  channel text not null check (channel in ('app','counter','whatsapp')),
+  -- Member whose invite brought this subscription (earns 50% off one monthly fee).
+  referred_by_customer_id text references customers(id)
 );
+-- One plan in force per person: several plans per account, never two for the same person.
+create unique index if not exists subscriptions_one_per_person on subscriptions (customer_id) where status <> 'canceled';
 
 create table if not exists appointments (
   id text primary key,
@@ -128,8 +150,21 @@ create table if not exists product_reservations (
 
 create table if not exists plan_leads (
   id text primary key,
+  -- Who the plan is for, and the account holder who asked for it.
   customer_id text not null references customers(id),
+  requested_by_id text not null references customers(id),
   plan_id text not null references plans(id),
+  kind text not null default 'new' check (kind in ('new','upgrade')),
+  referrer_customer_id text references customers(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists gallery_photos (
+  id text primary key,
+  customer_id text not null references customers(id),
+  appointment_id text references appointments(id),
+  side text not null check (side in ('before','after')),
+  url text not null,
   created_at timestamptz not null default now()
 );
 
@@ -145,3 +180,4 @@ alter table appointments enable row level security;
 alter table product_sales enable row level security;
 alter table product_reservations enable row level security;
 alter table plan_leads enable row level security;
+alter table gallery_photos enable row level security;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ArrowUpRight, Check } from "lucide-react";
 import { DataTable, Legend, PageHeader, Panel, SOURCE_SEGMENTS, StackedBar, parsePeriod } from "@/components/dashboard";
 import { Badge, Stat, buttonStyles, cn } from "@/components/ui";
-import { barberRevenue, clubTotals, periodRange, revenueMix, upcomingClubCharges } from "@/domain/metrics";
+import { barberRevenue, clubTotals, periodRange, referralStats, revenueMix, upcomingClubCharges } from "@/domain/metrics";
 import { formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { loadSnapshot } from "@/server/data/store";
 
@@ -20,13 +20,14 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const barbers = barberRevenue(s, range, { includeInactive: true });
   const club = clubTotals(s, range);
   const upcoming = upcomingClubCharges(s, 30);
+  const referrals = referralStats(s, range);
   const commissions = barbers.map((b) => ({ ...b, commission: b.serviceCommissionCents + b.productCommissionCents }));
   const totalCommission = commissions.reduce((t, b) => t + b.commission, 0);
   const financeUrl = process.env.FINAL_FINANCE_URL || null;
 
   const sources = [
     { ...SOURCE_SEGMENTS.walkIn, value: mix.walkInCents },
-    { ...SOURCE_SEGMENTS.club, value: mix.clubCents },
+    { ...SOURCE_SEGMENTS.club, label: "Mister Club (já com descontos de indicação)", value: mix.clubCents },
     { ...SOURCE_SEGMENTS.product, value: mix.productCents },
   ];
 
@@ -39,6 +40,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         <Stat label="Comissões a pagar" value={formatMoneyCompact(totalCommission)} hint={mix.totalCents ? `${formatPercent(totalCommission / mix.totalCents)} do faturamento` : undefined} />
         <Stat label="Clube nos próximos 30 dias" value={formatMoneyCompact(upcoming.totalCents)} hint={`${upcoming.count} cobranças previstas`} />
         <Stat label="Clube em atraso" value={formatMoneyRound(club.pastDueCents)} hint={`${club.pastDue} cartões recusados`} />
+        <Stat label="Descontos de indicação" value={formatMoneyRound(referrals.discountsInRangeCents)} hint={`${referrals.joinedInRange} assinantes novos por indicação`} />
       </div>
 
       <div className="flex flex-wrap gap-6">

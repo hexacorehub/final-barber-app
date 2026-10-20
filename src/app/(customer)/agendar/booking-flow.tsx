@@ -90,7 +90,7 @@ export function BookingFlow(p: BookingProps) {
   if (result?.ok) {
     const [d, t] = result.when.split("T");
     return (
-      <div className="flex flex-col items-center gap-5 px-6 pt-12 text-center">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-5 px-6 pt-12 text-center">
         <span className="flex size-[72px] items-center justify-center rounded-full bg-ink text-white">
           <Check size={34} strokeWidth={2.4} aria-hidden="true" />
         </span>
@@ -119,7 +119,7 @@ export function BookingFlow(p: BookingProps) {
 
   const sections: Record<Step, React.ReactNode> = {
     service: (
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-2 md:grid-cols-2">
         {p.services
           .filter((s) => s.main || showExtras)
           .map((s) => {
@@ -146,7 +146,7 @@ export function BookingFlow(p: BookingProps) {
               </button>
             );
           })}
-        <button type="button" onClick={() => setShowExtras((v) => !v)} className={cn(buttonStyles.ghost, "self-start text-muted")}>
+        <button type="button" onClick={() => setShowExtras((v) => !v)} className={cn(buttonStyles.ghost, "self-start text-muted md:col-span-2")}>
           {showExtras ? "Mostrar só os principais" : "Ver todos os serviços"}
         </button>
       </div>
@@ -192,7 +192,7 @@ export function BookingFlow(p: BookingProps) {
           ))}
         </div>
         {starts.length ? (
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 md:grid-cols-6">
             {starts.map((t) => (
               <button
                 key={t}
@@ -223,8 +223,9 @@ export function BookingFlow(p: BookingProps) {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-col gap-6 px-5 pt-5">
-      <h1 className="font-display text-[28px] font-semibold">Agendar</h1>
+    <div className="px-5 pt-5 md:grid md:grid-cols-[minmax(0,1fr)_340px] md:items-start md:gap-10 md:px-0 md:pt-8">
+      <div className="flex flex-col gap-6">
+      <h1 className="font-display text-[28px] font-semibold md:text-[36px]">Agendar</h1>
 
       <div className="flex flex-col gap-2.5">
         <Eyebrow>Para quem?</Eyebrow>
@@ -244,12 +245,16 @@ export function BookingFlow(p: BookingProps) {
               </button>
             );
           })}
-          <Link href="/conta#dependentes" className="flex min-h-11 items-center gap-1 rounded-full border-[1.5px] border-dashed border-[#9a9a9a] px-4 text-sm text-ink-soft">
+          <Link href="/conta#familia" className="flex min-h-11 items-center gap-1 rounded-full border-[1.5px] border-dashed border-[#9a9a9a] px-4 text-sm text-ink-soft">
             <Plus size={16} aria-hidden="true" /> Adicionar
           </Link>
         </div>
         <p className="text-[13px] text-ink-soft">
-          {people.length > 1 ? `${people.map((x) => x.firstName).join(" e ")} no mesmo horário, em cadeiras lado a lado.` : people[0]?.label === "Eu" ? "Só para você." : `Só para ${people[0]?.firstName}, na sua conta.`}
+          {people.length > 1
+            ? `${people.map((x) => x.firstName).join(", ").replace(/, ([^,]*)$/, " e $1")} no mesmo horário, em cadeiras lado a lado.`
+            : people[0]?.label === "Eu"
+              ? "Só para você."
+              : `Só para ${people[0]?.firstName}, na sua conta.`}
         </p>
       </div>
 
@@ -287,8 +292,10 @@ export function BookingFlow(p: BookingProps) {
           {sections[step]}
         </section>
       ))}
+      </div>
 
-      <div className="sticky bottom-[68px] -mx-5 flex flex-col gap-2.5 border-t border-line bg-white px-5 pt-3.5 pb-4">
+      <aside className="sticky bottom-[68px] -mx-5 mt-6 flex flex-col gap-2.5 border-t border-line bg-white px-5 pt-3.5 pb-4 md:top-24 md:bottom-auto md:mx-0 md:mt-0 md:rounded-2xl md:border md:p-5">
+        <h2 className="hidden font-display text-lg font-semibold md:block">Resumo</h2>
         <p className="text-[13px] text-ink-soft">{summary.length ? summary.join(" · ") : "Nada escolhido ainda."}</p>
         {chosen.length && people.length ? (
           <p className="text-[13px] font-semibold">
@@ -309,7 +316,7 @@ export function BookingFlow(p: BookingProps) {
         <button type="button" onClick={confirm} disabled={!canConfirm || pending} className={buttonStyles.primary}>
           {pending ? "Agendando…" : canConfirm ? (people.length > 1 ? `Confirmar ${people.length} agendamentos` : "Confirmar agendamento") : "Escolha serviço e horário"}
         </button>
-      </div>
+      </aside>
     </div>
   );
 }

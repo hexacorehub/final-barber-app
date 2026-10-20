@@ -1,7 +1,8 @@
 # Final Barber — app da barbearia + painel do dono
 
-MVP feito para a **Mister Bigode**: o cliente agenda, assina o Mister Club, reserva produtos e
-guarda o antes/depois; o dono acompanha faturamento por barbeiro, o clube e a vitrine.
+MVP feito para a **Mister Bigode**: o cliente agenda, assina o Mister Club (para si e para a
+família), indica amigos, reserva produtos e guarda o antes/depois; o dono acompanha
+faturamento por barbeiro, o clube, as indicações e a vitrine.
 Interface em pt-BR; código em inglês. Mesmo stack do Final Finance, para a integração futura.
 
 ## Stack
@@ -11,88 +12,104 @@ Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind 4 
 
 ## Áreas
 
-**App do cliente** (mobile-first)
+**App do cliente** — mobile-first, com versão web (menu no topo e telas em colunas a partir de
+768 px; no celular continua a barra inferior).
 
-- `/inicio` — lembrete do próximo corte pelo ritmo do cliente, próximo horário, economia com o
-  clube, resultados da semana, mais vendidos e as duas unidades (como chegar, WhatsApp).
-- `/agendar` — começa por serviço, profissional **ou** horário; qualquer unidade ou uma
-  específica; agenda **para mais de uma pessoa** (pai e filho lado a lado, cada um com seu clube).
-- `/clube` — os 6 planos reais do Mister Club, calculadora "quanto você economiza", vantagens,
-  termos e assinatura (gera um pedido para a equipe confirmar).
-- `/produtos` — vitrine com filtro, mais vendidos, estoque baixo e reserva para retirar na visita.
-- `/conta` e `/galeria` — assinatura, dependentes, forma de pagamento, pausa, lembrete,
-  histórico e antes/depois de cada corte.
+- `/inicio` — lembrete do próximo corte, economia com o clube, indicação, resultados (fotos),
+  mais vendidos e as unidades.
+- `/agendar` — começa por serviço, profissional ou horário; agenda **várias pessoas da conta**
+  no mesmo horário, lado a lado. No desktop o resumo fica fixo ao lado.
+- `/clube` — os 6 planos, calculadora, **comparativo de todos os planos** para os hábitos da
+  pessoa (mensalidade + o que fica de fora = total, economia) e **sugestões para subir de
+  plano** (quanto custa a mais e quando compensa).
+- `/clube/assinar/[plano]` — escolhe **para quem** é o plano (titular ou alguém da conta),
+  forma de pagamento e aplica o convite de indicação.
+- `/conta` — assinatura, **família na conta** (adicionar filho, sogro, cônjuge…), pagamento,
+  pausa, histórico.
+- `/indique` — código, link e WhatsApp do **programa de indicação**; descontos ganhos.
+- `/convite/[código]` — página pública que o cliente compartilha.
+- `/produtos`, `/galeria` — vitrine com fotos e antes/depois.
 
-**Painel do dono** (`/painel`, protegido por `PAINEL_PASSCODE`)
+**Painel do dono** (`/painel`) — visão geral, barbeiros, Mister Club (indicadores, pedidos de
+plano e trocas, **programa de indicação**, clientes para indicar o clube, assinantes em risco),
+produtos e financeiro (com os descontos de indicação; caixa, impostos e contador ficam no
+Final Finance).
 
-- **Visão geral** — faturamento, receita recorrente, assinantes, ticket médio, ocupação,
-  faturamento por barbeiro ativo, clube por plano e **indicações automáticas**.
-- **Barbeiros** — atendimentos, avulso, parte do clube (rateio pelo valor dos serviços),
-  produtos, ocupação e planos vendidos; desligados à parte.
-- **Mister Club** — indicadores por plano, evolução, clientes que economizariam no clube
-  (com convite pronto no WhatsApp), pedidos do app, quem vendeu e assinantes em risco.
-- **Produtos** — vitrine, estoque, margem e reservas.
-- **Financeiro** — origem da receita, comissões e recebíveis do clube. Fluxo de caixa,
-  impostos, notas e contador ficam no **Final Finance** (a página apresenta o complemento em vez
-  de duplicar essas funções).
+Todos os números vêm de `src/domain/metrics.ts`; regras de conta em `src/domain/household.ts`
+(com testes em `tests/`).
 
-Todos os números são calculados dos registros em `src/domain/metrics.ts` (com testes).
+## Regras de negócio
 
-## Acesso de demonstração (para a barbearia ver tudo)
+**Contas e planos da família**
 
-Defina `DEMO_ACCESS_CODE` na Vercel. Com ele:
+- Cada conta tem um **titular** e pode ter pessoas gerenciadas por ele (filho menor, sogro,
+  cônjuge…), com parentesco e marcação de menor de idade.
+- **Um plano em vigor por pessoa** (garantido também no banco por índice único); vários planos
+  na mesma conta, um para cada pessoa.
+- Só o **titular** adiciona pessoas, agenda para elas e pede/troca planos; a cobrança de todos
+  fica com ele. Uma pessoa gerenciada não contrata nada sozinha.
+- Pedir o plano que a pessoa já tem é bloqueado; pedir outro vira **troca de plano**.
 
-- o site inteiro fica fechado; quem não tem o código cai em `/acesso`;
-- quem entra com o código vê as **duas visões** (app do cliente como o Rafael e painel do dono)
-  e uma barra preta no topo para alternar entre **Cliente** e **Dono**;
-- dá para mandar um link que já entra direto: `https://<seu-site>/acesso/entrar?codigo=<código>`;
-- o acesso fica salvo no navegador por 30 dias; "Sair do acesso de demonstração" em `/acesso`.
+**Indicação**
 
-`PAINEL_PASSCODE` continua existindo para quando o painel tiver só o dono (sem o modo
-demonstração).
+- Cada cliente tem um código (ex.: `RAFAEL-7021`) e um link `/convite/<código>`.
+- Quando o indicado assina, quem indicou ganha **50% em uma próxima mensalidade do próprio
+  plano**: um desconto por amigo, aplicado nas cobranças seguintes, um por mês.
+- Indicar alguém da própria conta não conta. O desconto já aparece nas cobranças, no
+  financeiro e no painel.
+
+## Acesso de demonstração
+
+Com `DEMO_ACCESS_CODE` definido, o site fica fechado e o código libera as duas visões (cliente
+e dono), com uma barra para alternar. Link direto: `https://<site>/acesso/entrar?codigo=<código>`.
+A página `/convite/<código>` continua pública.
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Para quê |
+|---|---|---|
+| `SUPABASE_URL` | para salvar dados | URL do projeto (Settings → API) |
+| `SUPABASE_SECRET_KEY` | para salvar dados | chave **secreta** `sb_secret_…` (nunca a publishable) |
+| `DEMO_ACCESS_CODE` | recomendada | fecha o site e libera as duas visões com um código |
+| `PAINEL_PASSCODE` | opcional | código só do painel, quando não houver modo demonstração |
+| `FINAL_FINANCE_URL` | opcional | link do botão do Final Finance no financeiro |
+
+Sem as duas do Supabase, o app roda com dados de demonstração em memória.
+
+## Supabase + Vercel
+
+1. Supabase → SQL Editor: rode [`supabase/schema.sql`](./supabase/schema.sql). (Se já rodou
+   uma versão anterior, descomente o `drop table` no topo uma vez.)
+2. `.env` local com `SUPABASE_URL` e `SUPABASE_SECRET_KEY`, depois:
+   - `pnpm db:seed` — catálogo + a conta de demonstração (Rafael, Pedro e Antônio);
+   - `pnpm db:seed --demo` — também o histórico simulado. **Apaga e recria** clientes, planos
+     vendidos, atendimentos, vendas, pedidos e fotos: use só em ambiente de demonstração e
+     rode de novo na véspera de apresentar, para as datas ficarem atuais.
+3. Vercel: importe o repositório, Node 22, e defina as variáveis acima.
+
+## Fotos
+
+As fotos da demo vêm do Unsplash (licença livre), carregadas direto do CDN deles e listadas em
+`src/server/data/photos.ts`. No banco são colunas de URL (`shop_settings.cover_photo_url`,
+`portfolio`, `units.photo_url`, `products.photo_url`, `gallery_photos.url`): troque pelas
+fotos reais da barbearia. Se uma foto não carregar, aparece um quadro neutro.
+
+## O que é real e o que é estimativa
+
+Do site da Mister Bigode: unidades, endereços, horários, os 9 profissionais, a lista de
+serviços e os planos com preços. **Trocar pelos reais**: preços e durações avulsos, unidade de
+cada barbeiro, comissões, produtos, vantagens e termos de cada plano, e as fotos.
+
+## Ainda não integrado
+
+Pagamento (conta no CNPJ da barbearia + split), login do cliente (o app abre como o Rafael),
+upload de fotos (Supabase Storage), envio automático no WhatsApp e integração com o Final Finance.
 
 ## Rodar localmente
 
 ```bash
 pnpm install
-pnpm dev            # sem Supabase: usa dados de demonstração em memória
-pnpm test           # testes de domínio
+pnpm dev        # sem Supabase: dados de demonstração
+pnpm test
 pnpm typecheck
 ```
-
-## Supabase + Vercel
-
-1. Crie o projeto no Supabase e rode [`supabase/schema.sql`](./supabase/schema.sql) no SQL Editor.
-2. Em `.env` (veja `.env.example`), coloque `SUPABASE_URL` e `SUPABASE_SECRET_KEY` (chave secreta).
-3. Carregue os dados:
-   - `pnpm db:seed` — catálogo (unidades, barbeiros, serviços, planos, produtos) + o cliente de
-     demonstração usado pelo app enquanto não há login.
-   - `pnpm db:seed --demo` — também o histórico simulado (clientes, assinaturas, atendimentos,
-     vendas), para apresentar o painel cheio.
-4. Na Vercel: importe o repositório e defina `SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
-   `DEMO_ACCESS_CODE` (e/ou `PAINEL_PASSCODE`) e, se quiser, `FINAL_FINANCE_URL`. Node 22.
-
-**Qual base usar na apresentação.** Sem as variáveis do Supabase, o histórico simulado é gerado
-a partir do dia de hoje a cada hora: sempre "fresco", mas o que for criado na demo (agendamentos,
-pedidos, reservas) some quando a Vercel recicla o servidor. Com o Supabase + `--demo`, tudo fica
-salvo, mas o histórico envelhece a partir do dia do seed (rode `pnpm db:seed --demo` de novo na
-véspera da apresentação para atualizar as datas).
-
-Sem as variáveis do Supabase o app roda inteiro com dados de demonstração (o que for criado
-some quando o servidor reinicia).
-
-## O que é real e o que é estimativa
-
-Vem do site da Mister Bigode: unidades, endereços, horários, os 9 profissionais, a lista de
-serviços e os planos com preços. **Trocar pelos reais** (em `src/server/data/catalog.ts` ou nas
-tabelas): preços e durações avulsos, unidade de cada barbeiro, comissões (40% serviços / 10%
-produtos), produtos da vitrine, vantagens completas e termos de cada plano. O selo "Mais
-vendido" está no Premium Corte e Barba, como na página atual.
-
-## Ainda não integrado (próximas etapas)
-
-- Pagamento (cobrança recorrente com conta no CNPJ da barbearia e split da plataforma).
-- Login do cliente (hoje o app abre como o cliente de demonstração Rafael) e contas de equipe.
-- Fotos da galeria e do feed (Supabase Storage); hoje a galeria mostra a foto só no aparelho.
-- Lembretes e mensagens automáticas no WhatsApp; hoje o painel abre a conversa com o texto pronto.
-- Integração com o Final Finance.

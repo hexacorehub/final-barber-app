@@ -8,6 +8,13 @@ export interface OpeningHours {
   close: number;
 }
 
+export interface PortfolioPhoto {
+  url: string;
+  caption: string;
+  /** Barber who did the work, when known. */
+  barberId: string | null;
+}
+
 export interface Shop {
   name: string;
   tagline: string;
@@ -15,6 +22,9 @@ export interface Shop {
   /** Number shown as social proof, e.g. "+500 membros". */
   memberCountLabel: string;
   ratingLabel: string;
+  coverPhotoUrl: string | null;
+  /** Work shown in "Resultados" on the app. */
+  portfolio: PortfolioPhoto[];
 }
 
 export interface Unit {
@@ -22,6 +32,7 @@ export interface Unit {
   name: string;
   address: string;
   phone: string | null;
+  photoUrl: string | null;
   /** Indexed by weekday; null = closed. */
   hours: (OpeningHours | null)[];
 }
@@ -79,7 +90,11 @@ export interface Product {
   stock: number;
   minStock: number;
   active: boolean;
+  photoUrl: string | null;
 }
+
+/** How a managed member relates to the account holder. */
+export type Relationship = "child" | "spouse" | "parent" | "parent_in_law" | "sibling" | "other";
 
 export interface Customer {
   id: string;
@@ -89,6 +104,15 @@ export interface Customer {
   cycleDays: number;
   preferredBarberId: string | null;
   createdAt: string;
+  /**
+   * Account holder ("titular") who manages this person. null = this customer is a holder.
+   * Only the holder adds people, books for them and contracts their plans.
+   */
+  holderId: string | null;
+  relationship: Relationship | null;
+  minor: boolean;
+  /** Code this customer shares in the referral program. */
+  referralCode: string;
 }
 
 export type SubscriptionStatus = "active" | "paused" | "past_due" | "canceled";
@@ -108,6 +132,8 @@ export interface Subscription {
   /** Barber who sold or recommended the plan. */
   soldByBarberId: string | null;
   channel: SalesChannel;
+  /** Customer whose referral brought this subscription (earns 50% off one monthly fee). */
+  referredByCustomerId: string | null;
 }
 
 export type AppointmentStatus = "scheduled" | "completed" | "no_show" | "canceled";
@@ -151,10 +177,25 @@ export interface ProductReservation {
   createdAt: string;
 }
 
+/** A plan request made in the app, confirmed by the team before billing starts. */
 export interface PlanLead {
   id: string;
+  /** Who the plan is for (the holder or one of the people they manage). */
   customerId: string;
+  /** Account holder who asked for it. */
+  requestedById: string;
   planId: string;
+  kind: "new" | "upgrade";
+  referrerCustomerId: string | null;
+  createdAt: string;
+}
+
+export interface GalleryPhoto {
+  id: string;
+  customerId: string;
+  appointmentId: string | null;
+  side: "before" | "after";
+  url: string;
   createdAt: string;
 }
 
@@ -172,5 +213,6 @@ export interface Snapshot {
   productSales: ProductSale[];
   reservations: ProductReservation[];
   leads: PlanLead[];
+  galleryPhotos: GalleryPhoto[];
   now: string;
 }

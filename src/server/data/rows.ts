@@ -2,6 +2,7 @@ import type {
   Appointment,
   Barber,
   Customer,
+  GalleryPhoto,
   Plan,
   PlanLead,
   Product,
@@ -25,6 +26,8 @@ export const shopToRow = (s: Shop): Row => ({
   instagram: s.instagram,
   member_count_label: s.memberCountLabel,
   rating_label: s.ratingLabel,
+  cover_photo_url: s.coverPhotoUrl,
+  portfolio: s.portfolio,
 });
 export const shopFromRow = (r: Row): Shop => ({
   name: String(r.name),
@@ -32,14 +35,17 @@ export const shopFromRow = (r: Row): Shop => ({
   instagram: String(r.instagram),
   memberCountLabel: String(r.member_count_label),
   ratingLabel: String(r.rating_label),
+  coverPhotoUrl: (r.cover_photo_url as string | null) ?? null,
+  portfolio: (r.portfolio as Shop["portfolio"]) ?? [],
 });
 
-export const unitToRow = (u: Unit): Row => ({ id: u.id, name: u.name, address: u.address, phone: u.phone, hours: u.hours });
+export const unitToRow = (u: Unit): Row => ({ id: u.id, name: u.name, address: u.address, phone: u.phone, photo_url: u.photoUrl, hours: u.hours });
 export const unitFromRow = (r: Row): Unit => ({
   id: String(r.id),
   name: String(r.name),
   address: String(r.address),
   phone: (r.phone as string | null) ?? null,
+  photoUrl: (r.photo_url as string | null) ?? null,
   hours: r.hours as Unit["hours"],
 });
 
@@ -110,6 +116,7 @@ export const productToRow = (p: Product): Row => ({
   stock: p.stock,
   min_stock: p.minStock,
   active: p.active,
+  photo_url: p.photoUrl,
 });
 export const productFromRow = (r: Row): Product => ({
   id: String(r.id),
@@ -121,6 +128,7 @@ export const productFromRow = (r: Row): Product => ({
   stock: num(r.stock),
   minStock: num(r.min_stock),
   active: Boolean(r.active),
+  photoUrl: (r.photo_url as string | null) ?? null,
 });
 
 export const customerToRow = (c: Customer): Row => ({
@@ -130,6 +138,10 @@ export const customerToRow = (c: Customer): Row => ({
   cycle_days: c.cycleDays,
   preferred_barber_id: c.preferredBarberId,
   created_at: c.createdAt,
+  holder_id: c.holderId,
+  relationship: c.relationship,
+  minor: c.minor,
+  referral_code: c.referralCode,
 });
 export const customerFromRow = (r: Row): Customer => ({
   id: String(r.id),
@@ -138,6 +150,10 @@ export const customerFromRow = (r: Row): Customer => ({
   cycleDays: num(r.cycle_days),
   preferredBarberId: (r.preferred_barber_id as string | null) ?? null,
   createdAt: new Date(String(r.created_at)).toISOString(),
+  holderId: (r.holder_id as string | null) ?? null,
+  relationship: (r.relationship as Customer["relationship"]) ?? null,
+  minor: Boolean(r.minor),
+  referralCode: String(r.referral_code ?? ""),
 });
 
 export const subscriptionToRow = (s: Subscription): Row => ({
@@ -151,6 +167,7 @@ export const subscriptionToRow = (s: Subscription): Row => ({
   billing_day: s.billingDay,
   sold_by_barber_id: s.soldByBarberId,
   channel: s.channel,
+  referred_by_customer_id: s.referredByCustomerId,
 });
 export const subscriptionFromRow = (r: Row): Subscription => ({
   id: String(r.id),
@@ -163,6 +180,7 @@ export const subscriptionFromRow = (r: Row): Subscription => ({
   billingDay: num(r.billing_day),
   soldByBarberId: (r.sold_by_barber_id as string | null) ?? null,
   channel: r.channel as Subscription["channel"],
+  referredByCustomerId: (r.referred_by_customer_id as string | null) ?? null,
 });
 
 export const appointmentToRow = (a: Appointment): Row => ({
@@ -234,10 +252,38 @@ export const reservationFromRow = (r: Row): ProductReservation => ({
   createdAt: new Date(String(r.created_at)).toISOString(),
 });
 
-export const leadToRow = (l: PlanLead): Row => ({ id: l.id, customer_id: l.customerId, plan_id: l.planId, created_at: l.createdAt });
+export const leadToRow = (l: PlanLead): Row => ({
+  id: l.id,
+  customer_id: l.customerId,
+  requested_by_id: l.requestedById,
+  plan_id: l.planId,
+  kind: l.kind,
+  referrer_customer_id: l.referrerCustomerId,
+  created_at: l.createdAt,
+});
 export const leadFromRow = (r: Row): PlanLead => ({
   id: String(r.id),
   customerId: String(r.customer_id),
+  requestedById: String(r.requested_by_id ?? r.customer_id),
   planId: String(r.plan_id),
+  kind: (r.kind as PlanLead["kind"]) ?? "new",
+  referrerCustomerId: (r.referrer_customer_id as string | null) ?? null,
+  createdAt: new Date(String(r.created_at)).toISOString(),
+});
+
+export const photoToRow = (x: GalleryPhoto): Row => ({
+  id: x.id,
+  customer_id: x.customerId,
+  appointment_id: x.appointmentId,
+  side: x.side,
+  url: x.url,
+  created_at: x.createdAt,
+});
+export const photoFromRow = (r: Row): GalleryPhoto => ({
+  id: String(r.id),
+  customerId: String(r.customer_id),
+  appointmentId: (r.appointment_id as string | null) ?? null,
+  side: r.side as GalleryPhoto["side"],
+  url: String(r.url),
   createdAt: new Date(String(r.created_at)).toISOString(),
 });

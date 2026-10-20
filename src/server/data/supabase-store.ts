@@ -5,8 +5,10 @@ import {
   appointmentToRow,
   barberFromRow,
   customerFromRow,
+  customerToRow,
   leadFromRow,
   leadToRow,
+  photoFromRow,
   planFromRow,
   productFromRow,
   reservationFromRow,
@@ -17,6 +19,7 @@ import {
   subscriptionFromRow,
   unitFromRow,
 } from "./rows";
+import { referralCodeFor } from "@/domain/household";
 import type { Store } from "./store";
 
 /** History window loaded for the dashboards (covers "mês anterior" and the six-month charts). */
@@ -54,7 +57,7 @@ export function createSupabaseStore(): Store {
     mode: "supabase",
     async snapshot(now) {
       const since = new Date(now.getTime() - HISTORY_DAYS * 86_400_000).toISOString();
-      const [shop, units, barbers, services, plans, products, customers, subscriptions, appointments, sales, reservations, leads] = await Promise.all([
+      const [shop, units, barbers, services, plans, products, customers, subscriptions, appointments, sales, reservations, leads, photos] = await Promise.all([
         db.from("shop_settings").select("*").eq("id", 1).maybeSingle(),
         fetchAll(db, "units"),
         fetchAll(db, "barbers"),
@@ -67,6 +70,7 @@ export function createSupabaseStore(): Store {
         fetchAll(db, "product_sales", { column: "sold_at", iso: since }),
         fetchAll(db, "product_reservations"),
         fetchAll(db, "plan_leads"),
+        fetchAll(db, "gallery_photos"),
       ]);
       if (shop.error) throw new Error(`Supabase: falha ao ler shop_settings: ${shop.error.message}`);
       if (!shop.data) throw new Error("Supabase: tabela shop_settings vazia. Rode `pnpm db:seed`.");
@@ -84,6 +88,7 @@ export function createSupabaseStore(): Store {
         productSales: sales.map(saleFromRow).sort((a, b) => a.soldAt.localeCompare(b.soldAt)),
         reservations: reservations.map(reservationFromRow),
         leads: leads.map(leadFromRow),
+        galleryPhotos: photos.map(photoFromRow),
         now: now.toISOString(),
       };
       return snapshot;
@@ -98,6 +103,19 @@ export function createSupabaseStore(): Store {
       const row = { ...item, id: `res-${crypto.randomUUID()}`, status: "reserved" as const, createdAt: new Date().toISOString() };
       const { error } = await db.from("product_reservations").insert(reservationToRow(row));
       if (error) throw new Error(`Supabase: falha ao reservar produto: ${error.message}`);
+      return row;
+    },
+    async createCustomer(item) {
+      const row = {
+        ...item,
+        id: `cust-${crypto.randomUUID()}`,
+        createdAt: new Date().toISOString(),
+        cycleDays: 21,
+        preferredBarberId: null,
+        referralCode: referralCodeFor(item.name, Math.floor(Math.random() * 10000)),
+      };
+      const { error } = await db.from("customers").insert(customerToRow(row));
+      if (error) throw new Error(`Supabase: falha ao adicionar pessoa: ${error.message}`);
       return row;
     },
     async createPlanLead(item) {

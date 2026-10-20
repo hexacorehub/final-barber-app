@@ -1,4 +1,5 @@
 import type { Barber, OpeningHours, Plan, Product, Service, Shop, Unit } from "@/domain/types";
+import { COVER_PHOTO, PORTFOLIO, PRODUCT_PHOTOS, SHOP_PHOTOS } from "./photos";
 
 /**
  * Mister Bigode catalog.
@@ -17,6 +18,8 @@ export const SHOP: Shop = {
   instagram: "@misterbigode_of",
   memberCountLabel: "+500 membros no Mister Club",
   ratingLabel: "4,9 no Google · +700 avaliações",
+  coverPhotoUrl: COVER_PHOTO,
+  portfolio: PORTFOLIO,
 };
 
 const WEEKDAY: OpeningHours = { open: 9 * 60, close: 20 * 60 };
@@ -24,8 +27,8 @@ const SATURDAY: OpeningHours = { open: 9 * 60, close: 19 * 60 };
 const HOURS = [null, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, SATURDAY];
 
 export const UNITS: Unit[] = [
-  { id: "unit-chacara", name: "Chácara Santo Antônio", address: "Rua José de Carvalho, 191 · São Paulo", phone: "(11) 97727-1896", hours: HOURS },
-  { id: "unit-guarapiranga", name: "Guarapiranga", address: "Avenida Guarapiranga, 2431 · São Paulo", phone: null, hours: HOURS },
+  { id: "unit-chacara", name: "Chácara Santo Antônio", address: "Rua José de Carvalho, 191 · São Paulo", phone: "(11) 97727-1896", photoUrl: SHOP_PHOTOS["unit-chacara"], hours: HOURS },
+  { id: "unit-guarapiranga", name: "Guarapiranga", address: "Avenida Guarapiranga, 2431 · São Paulo", phone: null, photoUrl: SHOP_PHOTOS["unit-guarapiranga"], hours: HOURS },
 ];
 
 const barber = (id: string, name: string, unitId: string, active = true): Barber => ({
@@ -139,6 +142,7 @@ const product = (
   stock,
   minStock,
   active: true,
+  photoUrl: PRODUCT_PHOTOS[id] ?? null,
 });
 
 /** Example showcase. Replace with what the shop actually sells. */

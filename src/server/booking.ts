@@ -1,7 +1,8 @@
 import "server-only";
 import type { BookingUnit, BusyMap } from "@/domain/availability";
 import { addDays, dayKey, localParts } from "@/domain/time";
-import type { Plan, Snapshot, Subscription } from "@/domain/types";
+import { household } from "@/domain/household";
+import type { Plan, Relationship, Snapshot, Subscription } from "@/domain/types";
 export { priceFor } from "@/domain/pricing";
 
 export const BOOKING_DAYS = 8;
@@ -29,25 +30,23 @@ export function bookingUnits(s: Snapshot): BookingUnit[] {
   }));
 }
 
-/** Customers the signed-in customer can book for: himself and his dependents, with their plans. */
-export function bookablePeople(s: Snapshot, customerId: string): { id: string; name: string; isSelf: boolean; subscription: Subscription | null; plan: Plan | null }[] {
-  const plans = new Map(s.plans.map((p) => [p.id, p]));
-  const inForce = (x: Subscription) => x.status === "active" || x.status === "past_due";
+/**
+ * People the signed-in customer can book for: the holder books for everyone in the account;
+ * a managed member only for themselves. Each comes with the plan in force (active or past due).
+ */
+export function bookablePeople(s: Snapshot, customerId: string): { id: string; name: string; isSelf: boolean; relationship: Relationship | null; subscription: Subscription | null; plan: Plan | null }[] {
   const me = s.customers.find((c) => c.id === customerId);
   if (!me) return [];
-  const mySub = s.subscriptions.find((x) => x.customerId === customerId && inForce(x)) ?? null;
-  const dependents = s.subscriptions
-    .filter((x) => x.payerCustomerId === customerId && x.customerId !== customerId && x.status !== "canceled")
-    .map((x) => ({ sub: x, customer: s.customers.find((c) => c.id === x.customerId) }))
-    .filter((x) => x.customer);
-  return [
-    { id: me.id, name: me.name, isSelf: true, subscription: mySub, plan: mySub ? (plans.get(mySub.planId) ?? null) : null },
-    ...dependents.map(({ sub, customer }) => ({
-      id: customer!.id,
-      name: customer!.name,
-      isSelf: false,
-      subscription: inForce(sub) ? sub : null,
-      plan: inForce(sub) ? (plans.get(sub.planId) ?? null) : null,
-    })),
-  ];
+  const members = me.holderId ? household(s, customerId).filter((m) => m.customer.id === customerId) : household(s, customerId);
+  return members.map((m) => {
+    const inForce = m.subscription && (m.subscription.status === "active" || m.subscription.status === "past_due");
+    return {
+      id: m.customer.id,
+      name: m.customer.name,
+      isSelf: m.customer.id === customerId,
+      relationship: m.customer.relationship,
+      subscription: inForce ? m.subscription : null,
+      plan: inForce ? m.plan : null,
+    };
+  });
 }

@@ -12,9 +12,9 @@ export default async function ProductsPage() {
   const ranked = productStats(s, { from: addDays(today, -60), to: today });
   const bestSellers = ranked.filter((x) => x.units > 0).slice(0, 3).map((x) => x.product.id);
   return (
-    <div className="flex flex-col gap-5 px-5 pt-5">
+    <div className="flex flex-col gap-5 px-5 pt-5 md:px-0 md:pt-8">
       <div>
-        <h1 className="font-display text-[28px] font-semibold">Produtos</h1>
+        <h1 className="font-display text-[28px] font-semibold md:text-[36px]">Produtos</h1>
         <p className="text-sm text-muted">Os mesmos que usamos na cadeira. Reserve e retire na sua próxima visita.</p>
       </div>
       <Showcase products={s.products.filter((p) => p.active)} bestSellers={bestSellers} />
