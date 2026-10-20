@@ -3,20 +3,25 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MustacheMark } from "@/components/brand";
 import { getStore, loadSnapshot } from "@/server/data/store";
-import { hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
+import { DemoBar } from "@/components/demo-bar";
+import { canSeeApp, hasDemoAccess } from "@/server/demo-access";
+import { dashboardProtected, hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
 import { leaveDashboard } from "../entrar/actions";
 import { OwnerNav } from "./owner-nav";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  if (!(await canSeeApp())) redirect("/acesso");
   if (!(await hasOwnerAccess())) redirect("/painel/entrar");
   const s = await loadSnapshot();
   const demo = getStore().mode === "demo";
-  const gated = passcodeConfigured();
+  const gated = dashboardProtected();
+  const canLeave = passcodeConfigured() && !(await hasDemoAccess());
 
   return (
     <div className="min-h-dvh bg-white">
+      <DemoBar current="owner" />
       <header className="bg-ink text-white">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-1 px-5 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -29,7 +34,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               <Link href="/inicio" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
                 Ver app do cliente
               </Link>
-              {gated ? (
+              {canLeave ? (
                 <form action={leaveDashboard}>
                   <button type="submit" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
                     Sair
@@ -46,7 +51,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <p className="mx-auto max-w-[1200px] px-5 py-2 text-[13px] text-ink-soft">
             {demo ? "Dados de demonstração gerados automaticamente: barbeiros, unidades e planos são reais; clientes, atendimentos e valores avulsos são simulados." : null}
             {demo && !gated ? " " : null}
-            {!gated ? "Painel sem código de acesso: defina PAINEL_PASSCODE antes de usar com dados reais." : null}
+            {!gated ? "Painel sem código de acesso: defina DEMO_ACCESS_CODE ou PAINEL_PASSCODE antes de compartilhar o link." : null}
           </p>
         </div>
       ) : null}

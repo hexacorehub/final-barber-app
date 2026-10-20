@@ -6,6 +6,7 @@ import { planBooking } from "@/domain/availability";
 import { addDays, dayKey, fromLocal, hhmm, localParts, weekdayOf } from "@/domain/time";
 import { BOOKING_DAYS, bookablePeople, bookingUnits, busyMap, priceFor } from "@/server/booking";
 import { getStore, loadSnapshot } from "@/server/data/store";
+import { canSeeApp } from "@/server/demo-access";
 import { currentCustomerId } from "@/server/session";
 
 const Input = z.object({
@@ -22,6 +23,7 @@ export type BookingResult =
   | { ok: false; error: string };
 
 export async function bookAppointments(raw: z.infer<typeof Input>): Promise<BookingResult> {
+  if (!(await canSeeApp())) return { ok: false, error: "Acesso de demonstração expirado. Entre de novo." };
   const parsed = Input.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Escolha quem vai, o serviço e um horário." };
   const input = parsed.data;

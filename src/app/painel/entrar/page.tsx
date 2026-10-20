@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/brand";
+import { canSeeApp } from "@/server/demo-access";
 import { hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
 import { EnterForm } from "./enter-form";
 
@@ -8,6 +9,7 @@ export const metadata: Metadata = { title: "Entrar no painel" };
 export const dynamic = "force-dynamic";
 
 export default async function EnterPage() {
+  if (!(await canSeeApp())) redirect("/acesso");
   if (!passcodeConfigured() || (await hasOwnerAccess())) redirect("/painel");
   return (
     <div className="flex min-h-dvh items-center justify-center bg-ink px-5">

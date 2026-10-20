@@ -38,6 +38,19 @@ Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind 4 
 
 Todos os números são calculados dos registros em `src/domain/metrics.ts` (com testes).
 
+## Acesso de demonstração (para a barbearia ver tudo)
+
+Defina `DEMO_ACCESS_CODE` na Vercel. Com ele:
+
+- o site inteiro fica fechado; quem não tem o código cai em `/acesso`;
+- quem entra com o código vê as **duas visões** (app do cliente como o Rafael e painel do dono)
+  e uma barra preta no topo para alternar entre **Cliente** e **Dono**;
+- dá para mandar um link que já entra direto: `https://<seu-site>/acesso/entrar?codigo=<código>`;
+- o acesso fica salvo no navegador por 30 dias; "Sair do acesso de demonstração" em `/acesso`.
+
+`PAINEL_PASSCODE` continua existindo para quando o painel tiver só o dono (sem o modo
+demonstração).
+
 ## Rodar localmente
 
 ```bash
@@ -57,7 +70,13 @@ pnpm typecheck
    - `pnpm db:seed --demo` — também o histórico simulado (clientes, assinaturas, atendimentos,
      vendas), para apresentar o painel cheio.
 4. Na Vercel: importe o repositório e defina `SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
-   `PAINEL_PASSCODE` e, se quiser, `FINAL_FINANCE_URL`. Node 22.
+   `DEMO_ACCESS_CODE` (e/ou `PAINEL_PASSCODE`) e, se quiser, `FINAL_FINANCE_URL`. Node 22.
+
+**Qual base usar na apresentação.** Sem as variáveis do Supabase, o histórico simulado é gerado
+a partir do dia de hoje a cada hora: sempre "fresco", mas o que for criado na demo (agendamentos,
+pedidos, reservas) some quando a Vercel recicla o servidor. Com o Supabase + `--demo`, tudo fica
+salvo, mas o histórico envelhece a partir do dia do seed (rode `pnpm db:seed --demo` de novo na
+véspera da apresentação para atualizar as datas).
 
 Sem as variáveis do Supabase o app roda inteiro com dados de demonstração (o que for criado
 some quando o servidor reinicia).

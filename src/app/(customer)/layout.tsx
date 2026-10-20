@@ -1,17 +1,22 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/brand";
+import { DemoBar } from "@/components/demo-bar";
+import { canSeeApp } from "@/server/demo-access";
 import { getStore, loadSnapshot } from "@/server/data/store";
 import { CustomerNav } from "./customer-nav";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomerLayout({ children }: { children: ReactNode }) {
+  if (!(await canSeeApp())) redirect("/acesso");
   const snapshot = await loadSnapshot();
   const demo = getStore().mode === "demo";
   return (
     <div className="min-h-dvh bg-white">
+      <DemoBar current="customer" />
       <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-md items-center justify-between px-5">
           <Link href="/inicio" aria-label={`${snapshot.shop.name}, início`}>

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getStore, loadSnapshot } from "@/server/data/store";
+import { canSeeApp } from "@/server/demo-access";
 import { currentCustomerId } from "@/server/session";
 
 /**
@@ -9,6 +10,7 @@ import { currentCustomerId } from "@/server/session";
  * on WhatsApp and the dashboard lists the request under "Interessados pelo app".
  */
 export async function requestPlan(planId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!(await canSeeApp())) return { ok: false, error: "Acesso de demonstração expirado. Entre de novo." };
   const s = await loadSnapshot();
   if (!s.plans.some((p) => p.id === planId)) return { ok: false, error: "Plano não encontrado." };
   await getStore().createPlanLead({ customerId: await currentCustomerId(), planId });
