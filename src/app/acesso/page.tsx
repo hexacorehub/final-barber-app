@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, LayoutDashboard, Smartphone } from "lucide-react";
 import { MustacheMark } from "@/components/brand";
+import { TestDataNotice } from "@/components/test-data-notice";
 import { canSeeApp, hasDemoAccess } from "@/server/demo-access";
 import { loadSnapshot } from "@/server/data/store";
 import { leaveDemo } from "./actions";
@@ -74,7 +75,7 @@ function Hub({ shopName, canLeave }: { shopName: string; canLeave: boolean }) {
           </Link>
         ))}
       </div>
-      <p className="text-xs text-faint">Versão de demonstração: barbeiros, unidades e planos são reais; clientes, atendimentos e valores avulsos são simulados.</p>
+      <TestDataNotice />
       {canLeave ? (
         <form action={leaveDemo}>
           <button type="submit" className="min-h-11 text-sm text-muted underline-offset-2 hover:underline">

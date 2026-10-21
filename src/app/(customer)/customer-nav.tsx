@@ -19,7 +19,11 @@ function useActive() {
     path === href || path.startsWith(`${href}/`) || (href === "/conta" && (path.startsWith("/galeria") || path.startsWith("/indique")));
 }
 
-/** Bottom tab bar on phones. */
+/**
+ * Bottom tab bar on phones. The five main screens are prefetched in full (data included) as
+ * soon as the bar is on screen, so the first tap on each tab opens without waiting on the
+ * server. Server data is cached, so these prefetches are cheap.
+ */
 export function CustomerNav() {
   const isActive = useActive();
   return (
@@ -31,6 +35,7 @@ export function CustomerNav() {
             <li key={href}>
               <Link
                 href={href}
+                prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn("flex h-[68px] flex-col items-center justify-center gap-1 text-[11px]", active ? "font-semibold text-ink" : "font-medium text-faint")}
               >
@@ -56,6 +61,7 @@ export function CustomerTopNav() {
           <Link
             key={href}
             href={href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className={cn("flex h-10 items-center rounded-lg px-3.5 text-sm", active ? "bg-ink font-semibold text-white" : "text-ink-soft hover:bg-chip")}
           >

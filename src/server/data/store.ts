@@ -12,7 +12,8 @@ export type NewCustomer = Omit<Customer, "id" | "createdAt" | "referralCode" | "
 export interface Store {
   /** "demo" runs on generated data in memory; "supabase" reads and writes the project's tables. */
   mode: "demo" | "supabase";
-  snapshot(now: Date): Promise<Snapshot>;
+  /** `fresh` skips any reuse of recently loaded data (used to validate writes). */
+  snapshot(now: Date, opts?: { fresh?: boolean }): Promise<Snapshot>;
   createAppointments(items: NewAppointment[]): Promise<Appointment[]>;
   createReservation(item: NewReservation): Promise<ProductReservation>;
   createPlanLead(item: NewPlanLead): Promise<PlanLead>;
@@ -31,3 +32,6 @@ export function getStore(): Store {
 
 /** One snapshot per request, shared by every component that asks for it. */
 export const loadSnapshot = cache(async (): Promise<Snapshot> => getStore().snapshot(new Date()));
+
+/** Up-to-date data for checks that guard a write (availability, duplicates). */
+export const loadFreshSnapshot = cache(async (): Promise<Snapshot> => getStore().snapshot(new Date(), { fresh: true }));

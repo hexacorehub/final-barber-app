@@ -1,4 +1,4 @@
-import type { Appointment, Barber, ClubCoverage, Customer, Plan, Product, Snapshot, Subscription } from "./types";
+import type { Appointment, Barber, Customer, Plan, Product, Snapshot, Subscription } from "./types";
 import { addDays, addMonths, dayKey, daysBetween, daysInMonth, weekdayOf } from "./time";
 
 /**
@@ -653,69 +653,6 @@ function nextBillingDay(billingDay: number, today: string): string {
   if (thisMonth > today) return thisMonth;
   const next = addMonths(m, 1);
   return `${next}-${String(Math.min(billingDay, daysInMonth(next))).padStart(2, "0")}`;
-}
-
-// ---------------------------------------------------------------------------------------
-// Savings calculator (customer app)
-
-export interface PlanQuote {
-  plan: Plan;
-  perVisitCents: number;
-  savingCents: number;
-}
-
-/** What `haircuts` and `beards` per month cost per visit, and the cheapest plan covering them. */
-export function quotePlans(plans: Plan[], haircutCents: number, beardCents: number, haircuts: number, beards: number): { perVisitCents: number; best: PlanQuote | null } {
-  const perVisitCents = haircuts * haircutCents + beards * beardCents;
-  const needs: Plan["covers"] = [...(haircuts > 0 ? (["haircut"] as const) : []), ...(beards > 0 ? (["beard"] as const) : [])];
-  if (!needs.length) return { perVisitCents, best: null };
-  const fitting = plans.filter((p) => needs.every((n) => p.covers.includes(n))).sort((a, b) => a.priceCents - b.priceCents);
-  const plan = fitting[0];
-  return plan ? { perVisitCents, best: { plan, perVisitCents, savingCents: perVisitCents - plan.priceCents } } : { perVisitCents, best: null };
-}
-
-export interface PlanComparisonRow {
-  plan: Plan;
-  /** Visits the plan does not cover, paid per visit on top of the fee. */
-  extraCents: number;
-  totalCents: number;
-  /** Against paying every visit. */
-  savingCents: number;
-  coversAll: boolean;
-}
-
-/** Every plan priced for the customer's habits: fee + what it leaves out, versus paying per visit. */
-export function comparePlans(plans: Plan[], haircutCents: number, beardCents: number, haircuts: number, beards: number): { perVisitCents: number; rows: PlanComparisonRow[]; bestId: string | null } {
-  const perVisitCents = haircuts * haircutCents + beards * beardCents;
-  const rows = [...plans]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((plan) => {
-      const extraCents = (plan.covers.includes("haircut") ? 0 : haircuts * haircutCents) + (plan.covers.includes("beard") ? 0 : beards * beardCents);
-      const totalCents = plan.priceCents + extraCents;
-      return {
-        plan,
-        extraCents,
-        totalCents,
-        savingCents: perVisitCents - totalCents,
-        coversAll: (haircuts === 0 || plan.covers.includes("haircut")) && (beards === 0 || plan.covers.includes("beard")),
-      };
-    });
-  const best = rows.filter((r) => r.savingCents > 0).sort((a, b) => a.totalCents - b.totalCents)[0];
-  return { perVisitCents, rows, bestId: best?.plan.id ?? null };
-}
-
-export interface UpgradeOption {
-  plan: Plan;
-  deltaCents: number;
-  adds: ClubCoverage[];
-}
-
-/** Bigger plans for someone on `current`: same or more coverage, higher fee, cheapest first. */
-export function upgradeOptions(plans: Plan[], current: Plan): UpgradeOption[] {
-  return plans
-    .filter((p) => p.id !== current.id && p.priceCents > current.priceCents && current.covers.every((c) => p.covers.includes(c)))
-    .map((plan) => ({ plan, deltaCents: plan.priceCents - current.priceCents, adds: plan.covers.filter((c) => !current.covers.includes(c)) }))
-    .sort((a, b) => b.adds.length - a.adds.length || a.deltaCents - b.deltaCents);
 }
 
 // ---------------------------------------------------------------------------------------

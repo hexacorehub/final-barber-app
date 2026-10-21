@@ -38,6 +38,17 @@ Final Finance).
 Todos os números vêm de `src/domain/metrics.ts`; regras de conta em `src/domain/household.ts`
 (com testes em `tests/`).
 
+## Desempenho
+
+- **Dados do Supabase em cache no servidor** (`SNAPSHOT_TTL_MS`, padrão 30 s): as telas reaproveitam
+  a última leitura; toda gravação feita pelo app invalida o cache, e as checagens que protegem uma
+  gravação (horário livre, duplicidade) sempre leem dados frescos.
+- **Paginação em paralelo:** cada tabela é lida em 2 idas ao banco, não em 1 por 1.000 linhas.
+- **Navegação:** as 5 abas principais (e as do painel) são pré-carregadas; telas visitadas no
+  último minuto reabrem sem ir ao servidor (`staleTimes`); esqueleto de carregamento quando preciso.
+- **Região:** `vercel.json` coloca as funções em São Paulo (`gru1`), perto do Supabase em
+  sa-east-1. Se o seu Supabase estiver em outra região, ajuste.
+
 ## Regras de negócio
 
 **Contas e planos da família**
@@ -49,6 +60,31 @@ Todos os números vêm de `src/domain/metrics.ts`; regras de conta em `src/domai
 - Só o **titular** adiciona pessoas, agenda para elas e pede/troca planos; a cobrança de todos
   fica com ele. Uma pessoa gerenciada não contrata nada sozinha.
 - Pedir o plano que a pessoa já tem é bloqueado; pedir outro vira **troca de plano**.
+
+**Agendamento: por unidade ou por profissional**
+
+- *Por unidade:* escolhe a unidade (ou "qualquer unidade") e, se quiser, alguém da equipe dela.
+- *Por profissional:* escolhe a pessoa; o agendamento fica na unidade em que ela trabalha.
+- Cada profissional atende numa unidade; um grupo (pai e filho) fica lado a lado numa unidade só.
+- Escolher alguém de outra unidade no modo "por unidade", ou trocar de unidade com um profissional
+  ou horário que deixa de valer, mostra o impacto e pede confirmação antes de mudar.
+- Ninguém é agendado duas vezes no mesmo horário, nem em unidades diferentes.
+- As mesmas regras rodam na tela e no servidor (`src/domain/booking-rules.ts`), que confere tudo
+  com dados frescos antes de salvar. Os planos do clube valem nas duas unidades (não há regra de
+  unidade nos planos hoje).
+- A escolha (modo, unidade, profissional) fica guardada no aparelho; o rascunho do agendamento
+  sobrevive a sair e voltar para a tela.
+
+**Comparação de planos** (`src/domain/plan-advice.ts`)
+
+- O uso (cortes e barbas por mês) vem do histórico dos últimos 3 meses; sem histórico suficiente,
+  o app pede para a pessoa informar, em vez de supor.
+- Para cada plano: total do mês para esse uso (mensalidade + o que ele não cobre, pago à parte) e
+  a diferença para hoje (avulso, ou o plano atual de quem já assina).
+- "Economiza" só aparece quando o plano é de fato mais barato; quando custa mais, a mensagem diz
+  quanto a mais e a partir de quantas visitas compensa. Mais atendimentos só são citados se o plano
+  informar o limite mensal (`plans.monthly_limit`); hoje nenhum informa, e o rodapé diz que a
+  equipe confirma.
 
 **Indicação**
 
@@ -74,13 +110,15 @@ A página `/convite/<código>` continua pública.
 | `PAINEL_PASSCODE` | opcional | código só do painel, quando não houver modo demonstração |
 | `FINAL_FINANCE_URL` | opcional | link do botão do Final Finance no financeiro |
 | `SEED_DEMO_HISTORY` | opcional | `false` para a carga automática trazer só catálogo e conta demo |
+| `SNAPSHOT_TTL_MS` | opcional | quanto tempo (ms) o servidor reaproveita a leitura do banco; padrão 30000 |
 
 Sem as duas do Supabase, o app roda com dados de demonstração em memória.
 
 ## Supabase + Vercel
 
 1. Supabase → SQL Editor: rode [`supabase/schema.sql`](./supabase/schema.sql). (Se já rodou
-   uma versão anterior, descomente o `drop table` no topo uma vez.)
+   uma versão anterior, descomente o `drop table` no topo uma vez. Para só acrescentar o limite
+   mensal dos planos, basta a linha `alter table plans add column if not exists monthly_limit …`.)
 2. **Nada mais a fazer:** na primeira visita ao site com as variáveis do Supabase, o app vê as
    tabelas vazias e carrega sozinho o catálogo, a conta do Rafael e o histórico simulado
    (uns 20 segundos nessa primeira vez). Para não carregar o histórico, defina

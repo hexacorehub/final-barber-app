@@ -5,7 +5,9 @@ import { Bell } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { DemoBar } from "@/components/demo-bar";
 import { buttonStyles, cn } from "@/components/ui";
-import { getStore, loadSnapshot } from "@/server/data/store";
+import { loadSnapshot } from "@/server/data/store";
+import { showsTestData } from "@/server/test-data";
+import { TestDataNotice } from "@/components/test-data-notice";
 import { canSeeApp } from "@/server/demo-access";
 import { CustomerNav, CustomerTopNav } from "./customer-nav";
 
@@ -14,7 +16,6 @@ export const dynamic = "force-dynamic";
 export default async function CustomerLayout({ children }: { children: ReactNode }) {
   if (!(await canSeeApp())) redirect("/acesso");
   const snapshot = await loadSnapshot();
-  const demo = getStore().mode === "demo";
   return (
     <div className="min-h-dvh bg-white">
       <DemoBar current="customer" />
@@ -36,7 +37,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
       </header>
       <main className="mx-auto max-w-md pb-28 md:max-w-6xl md:px-8 md:pb-16">
         {children}
-        {demo ? <p className="mt-10 px-5 text-center text-xs text-faint">Versão de demonstração · preços avulsos e produtos ilustrativos · fotos: Unsplash</p> : null}
+        {showsTestData() ? <TestDataNotice className="mt-10 px-5 text-center" /> : null}
       </main>
       <CustomerNav />
     </div>

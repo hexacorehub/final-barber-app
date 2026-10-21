@@ -94,6 +94,8 @@ export const planToRow = (p: Plan): Row => ({
   highlight: p.highlight,
   benefits: p.benefits,
   sort_order: p.sortOrder,
+  // Only sent when set, so databases created before this column keep working.
+  ...(p.monthlyLimit !== null ? { monthly_limit: p.monthlyLimit } : {}),
 });
 export const planFromRow = (r: Row): Plan => ({
   id: String(r.id),
@@ -104,6 +106,7 @@ export const planFromRow = (r: Row): Plan => ({
   highlight: (r.highlight as Plan["highlight"]) ?? null,
   benefits: (r.benefits as string[]) ?? [],
   sortOrder: num(r.sort_order),
+  monthlyLimit: r.monthly_limit === null || r.monthly_limit === undefined ? null : num(r.monthly_limit),
 });
 
 export const productToRow = (p: Product): Row => ({

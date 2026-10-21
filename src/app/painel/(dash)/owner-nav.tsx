@@ -22,6 +22,7 @@ export function OwnerNav() {
           <Link
             key={i.href}
             href={i.href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex h-11 shrink-0 items-center border-b-2 px-3 text-sm whitespace-nowrap",

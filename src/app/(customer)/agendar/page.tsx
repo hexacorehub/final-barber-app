@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { addDays, dayKey, localParts, shortDate, weekdayOf, weekdayShort } from "@/domain/time";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
-import { BOOKING_DAYS, bookablePeople, bookingUnits, busyMap } from "@/server/booking";
+import { BOOKING_DAYS, bookablePeople, bookingUnits, busyMap, personBookings } from "@/server/booking";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
 import { BookingFlow, type BookingProps } from "./booking-flow";
@@ -15,6 +15,11 @@ export default async function BookingPage() {
   const s = await loadSnapshot();
   const today = dayKey(s.now);
   const units = bookingUnits(s);
+  const meId = await currentCustomerId();
+  const people = bookablePeople(s, meId);
+  const me = s.customers.find((c) => c.id === meId);
+  const activeBarbers = s.barbers.filter((b) => b.active);
+  const preferred = activeBarbers.find((b) => b.id === me?.preferredBarberId) ?? null;
 
   const days: BookingProps["days"] = Array.from({ length: BOOKING_DAYS }, (_, i) => {
     const key = addDays(today, i);
@@ -29,19 +34,22 @@ export default async function BookingPage() {
   });
 
   const props: BookingProps = {
-    people: bookablePeople(s, await currentCustomerId()).map((p) => ({
+    people: people.map((p) => ({
       id: p.id,
       firstName: p.name.split(" ")[0],
       label: p.isSelf ? "Eu" : p.name.split(" ")[0],
       sub: p.isSelf ? p.name.split(" ")[0] : p.relationship ? RELATIONSHIP_LABEL[p.relationship] : "Na sua conta",
       plan: p.plan,
     })),
-    services: s.services
-      .filter((x) => x.bookable)
-      .map((x) => ({ ...x, main: MAIN_SERVICES.has(x.id) })),
-    barbers: s.barbers.filter((b) => b.active).map((b) => ({ id: b.id, name: b.name, unitId: b.unitId })),
-    units: units.map((u) => ({ ...u, name: s.units.find((x) => x.id === u.id)!.name })),
+    services: s.services.filter((x) => x.bookable).map((x) => ({ ...x, main: MAIN_SERVICES.has(x.id) })),
+    barbers: activeBarbers.map((b) => ({ id: b.id, name: b.name, unitId: b.unitId })),
+    units: units.map((u) => ({ ...u, name: s.units.find((x) => x.id === u.id)!.name, address: s.units.find((x) => x.id === u.id)!.address })),
     busy: busyMap(s),
+    existing: personBookings(
+      s,
+      people.map((p) => p.id),
+    ),
+    preferredBarberId: preferred?.id ?? null,
     days,
     today,
     nowMinutes: localParts(s.now).minutes,

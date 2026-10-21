@@ -4,21 +4,17 @@ import { checkAddMember, checkPlanRequest, household, referralCodeFor } from "@/
 import {
   barberRevenue,
   clubCharges,
-  comparePlans,
   referralDiscounts,
   referralSummary,
-  upgradeOptions,
   customerSummary,
   periodRange,
   planIndicators,
-  quotePlans,
   retentionRisk,
   revenueMix,
   upsellCandidates,
 } from "@/domain/metrics";
 import { addDays, dayKey, fromLocal, localParts } from "@/domain/time";
 import type { Snapshot, Subscription } from "@/domain/types";
-import { PLANS } from "@/server/data/catalog";
 import { buildDemoSnapshot, DEMO_CUSTOMER_ID, DEMO_DEPENDENT_ID, DEMO_FATHER_IN_LAW_ID } from "@/server/data/demo-dataset";
 
 const NOW = new Date("2026-10-20T20:30:00Z"); // 17:30 in São Paulo, a Tuesday
@@ -45,17 +41,6 @@ describe("availability", () => {
     expect(assignBarbers(["a", "b", "c"], busy, "d", 600, 40, 2, "c")).toEqual(["c", "a"]);
     expect(assignBarbers(["a", "b"], busy, "d", 540, 40, 2, null)).toBeNull();
     expect(assignBarbers(["a", "b"], busy, "d", 540, 40, 1, "a")).toBeNull();
-  });
-});
-
-describe("plan quotes", () => {
-  it("picks the cheapest plan covering what the customer uses", () => {
-    const q = quotePlans(PLANS, 8000, 6500, 3, 0);
-    expect(q.perVisitCents).toBe(24000);
-    expect(q.best?.plan.id).toBe("plan-haircut-plus");
-    expect(q.best?.savingCents).toBe(24000 - 14999);
-    expect(quotePlans(PLANS, 8000, 6500, 2, 2).best?.plan.id).toBe("plan-cb-plus");
-    expect(quotePlans(PLANS, 8000, 6500, 0, 0).best).toBeNull();
   });
 });
 
@@ -136,24 +121,6 @@ describe("demo data dashboards", () => {
     expect(c.dependents.map((d) => d.customer.name)).toEqual(["Pedro Lima", "Antônio Ferraz"]);
     expect(c.daysSinceVisit).toBe(12);
     expect(c.nextSuggested).toBe(addDays(dayKey(NOW), 2));
-  });
-});
-
-describe("plan comparison and upgrades", () => {
-  it("prices every plan for the customer's habits", () => {
-    const c = comparePlans(PLANS, 8000, 6500, 2, 2);
-    expect(c.perVisitCents).toBe(29000);
-    const corte = c.rows.find((r) => r.plan.id === "plan-haircut-plus")!;
-    expect(corte.extraCents).toBe(13000);
-    expect(corte.coversAll).toBe(false);
-    expect(c.bestId).toBe("plan-cb-plus");
-  });
-  it("suggests bigger plans, adding coverage first", () => {
-    const corte = PLANS.find((p) => p.id === "plan-haircut-plus")!;
-    const up = upgradeOptions(PLANS, corte);
-    expect(up[0].plan.covers).toEqual(["haircut", "beard"]);
-    expect(up.every((u) => u.deltaCents > 0)).toBe(true);
-    expect(up.some((u) => u.plan.id === "plan-beard-plus")).toBe(false);
   });
 });
 

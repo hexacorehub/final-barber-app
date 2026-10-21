@@ -8,12 +8,12 @@ export function cn(...parts: Parameters<typeof clsx>): string {
 
 export const buttonStyles = {
   primary:
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 text-[15px] font-semibold text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-track disabled:text-muted",
+    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 text-[15px] font-semibold text-white hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-track disabled:text-muted",
   secondary:
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-ink bg-white px-5 text-[15px] font-semibold text-ink transition hover:bg-chip disabled:opacity-50",
-  ghost: "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium text-ink transition hover:bg-chip",
+    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-ink bg-white px-5 text-[15px] font-semibold text-ink hover:bg-chip disabled:opacity-50",
+  ghost: "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium text-ink hover:bg-chip",
   inverse:
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-[15px] font-semibold text-ink transition hover:bg-chip",
+    "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-[15px] font-semibold text-ink hover:bg-chip",
 };
 
 export function Card({ children, className, dark }: { children: ReactNode; className?: string; dark?: boolean }) {

@@ -105,6 +105,8 @@ const plan = (
   covers,
   priceCents: Math.round(reais * 100),
   highlight,
+  // The shop's site does not say how many visits each plan includes: the team confirms it.
+  monthlyLimit: null,
   sortOrder,
   benefits: [
     ...(covers.includes("haircut") ? ["Corte incluso"] : []),

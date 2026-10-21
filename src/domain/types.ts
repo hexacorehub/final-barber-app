@@ -73,6 +73,8 @@ export interface Plan {
   covers: ClubCoverage[];
   priceCents: number;
   highlight: "best_seller" | null;
+  /** Appointments a month the plan includes; null = not stated (confirmed by the team). */
+  monthlyLimit: number | null;
   /** Benefits confirmed so far. The rest is confirmed by the team, as on the shop's site. */
   benefits: string[];
   sortOrder: number;

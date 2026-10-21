@@ -62,6 +62,8 @@ create table if not exists plans (
   benefits text[] not null default '{}',
   sort_order int not null default 0
 );
+-- Appointments a month a plan includes (null = not stated; confirmed by the team).
+alter table plans add column if not exists monthly_limit int check (monthly_limit > 0);
 
 create table if not exists products (
   id text primary key,

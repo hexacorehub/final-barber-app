@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { checkPlanRequest, household } from "@/domain/household";
-import { getStore, loadSnapshot } from "@/server/data/store";
+import { getStore, loadFreshSnapshot } from "@/server/data/store";
 import { canSeeApp } from "@/server/demo-access";
 import { currentCustomerId } from "@/server/session";
 
@@ -14,7 +14,7 @@ export type PlanRequestResult = { ok: true; kind: "new" | "upgrade" } | { ok: fa
  */
 export async function requestPlan(planId: string, beneficiaryId: string, referralCode: string | null): Promise<PlanRequestResult> {
   if (!(await canSeeApp())) return { ok: false, error: "Acesso de demonstração expirado. Entre de novo." };
-  const s = await loadSnapshot();
+  const s = await loadFreshSnapshot();
   const me = await currentCustomerId();
   const check = checkPlanRequest(s, me, beneficiaryId, planId);
   if (!check.ok) return check;

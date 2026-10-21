@@ -1,5 +1,6 @@
 import "server-only";
 import type { BookingUnit, BusyMap } from "@/domain/availability";
+import type { PersonBooking } from "@/domain/booking-rules";
 import { addDays, dayKey, localParts } from "@/domain/time";
 import { household } from "@/domain/household";
 import type { Plan, Relationship, Snapshot, Subscription } from "@/domain/types";
@@ -20,6 +21,18 @@ export function busyMap(s: Snapshot): BusyMap {
     ((out[a.barberId] ??= {})[day] ??= []).push([start, start + a.durationMin]);
   }
   return out;
+}
+
+/** Upcoming appointments of the given people, to avoid booking someone twice at once. */
+export function personBookings(s: Snapshot, customerIds: string[]): PersonBooking[] {
+  const today = dayKey(s.now);
+  const ids = new Set(customerIds);
+  return s.appointments
+    .filter((a) => ids.has(a.customerId) && a.status === "scheduled" && dayKey(a.startsAt) >= today)
+    .map((a) => {
+      const start = localParts(a.startsAt).minutes;
+      return { customerId: a.customerId, day: dayKey(a.startsAt), start, end: start + a.durationMin, unitId: a.unitId };
+    });
 }
 
 export function bookingUnits(s: Snapshot): BookingUnit[] {

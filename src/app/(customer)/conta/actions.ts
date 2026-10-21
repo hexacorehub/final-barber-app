@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { RELATIONSHIPS, checkAddMember } from "@/domain/household";
 import type { Relationship } from "@/domain/types";
-import { getStore, loadSnapshot } from "@/server/data/store";
+import { getStore, loadFreshSnapshot } from "@/server/data/store";
 import { canSeeApp } from "@/server/demo-access";
 import { currentCustomerId } from "@/server/session";
 
@@ -27,7 +27,7 @@ export async function addMember(_: AddMemberState, form: FormData): Promise<AddM
     phone: form.get("phone") || undefined,
   });
   if (!parsed.success) return { error: "Preencha o nome e o parentesco.", added: null };
-  const s = await loadSnapshot();
+  const s = await loadFreshSnapshot();
   const me = await currentCustomerId();
   const check = checkAddMember(s, me, parsed.data.name);
   if (!check.ok) return { error: check.error, added: null };

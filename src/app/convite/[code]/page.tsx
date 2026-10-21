@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { Check } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { Photo } from "@/components/photo";
+import { TestDataNotice } from "@/components/test-data-notice";
+import { showsTestData } from "@/server/test-data";
 import { buttonStyles, cn } from "@/components/ui";
 import { formatMoney } from "@/domain/money";
 import { loadSnapshot } from "@/server/data/store";
@@ -23,7 +25,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
   return (
     <div className="min-h-dvh bg-white">
       <div className="relative overflow-hidden bg-ink text-white">
-        <Photo src={s.shop.coverPhotoUrl} alt="Interior da barbearia" className="absolute inset-0 h-full w-full opacity-40" fallback="" />
+        <Photo src={s.shop.coverPhotoUrl} alt="Interior da barbearia" priority className="absolute inset-0 h-full w-full opacity-40" fallback="" />
         <div className="relative mx-auto flex max-w-3xl flex-col gap-5 px-5 pt-6 pb-12 md:px-8 md:pt-10 md:pb-16">
           <div className="text-white">
             <Wordmark name={s.shop.name} />
@@ -57,6 +59,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
             </div>
           ))}
       </div>
+      {showsTestData() ? <TestDataNotice className="mx-auto max-w-3xl px-5 pb-8 md:px-8" /> : null}
     </div>
   );
 }

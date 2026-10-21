@@ -7,6 +7,8 @@ import { DemoBar } from "@/components/demo-bar";
 import { canSeeApp, demoAccessConfigured, hasDemoAccess } from "@/server/demo-access";
 import { dashboardProtected, hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
 import { leaveDashboard } from "../entrar/actions";
+import { TEST_DATA_NOTICE } from "@/components/test-data-notice";
+import { showsTestData } from "@/server/test-data";
 import { OwnerNav } from "./owner-nav";
 import { RefreshDemoButton } from "./refresh-demo-button";
 
@@ -18,6 +20,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const s = await loadSnapshot();
   const demo = getStore().mode === "demo";
   const gated = dashboardProtected();
+  const testData = showsTestData();
   const canLeave = passcodeConfigured() && !(await hasDemoAccess());
 
   return (
@@ -47,21 +50,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <OwnerNav />
         </div>
       </header>
-      {!demo && demoAccessConfigured() ? (
+      {testData || !gated ? (
         <div className="border-b border-line bg-chip">
-          <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2 px-5 py-2">
-            <p className="text-[13px] text-ink-soft">Ambiente de demonstração no Supabase: clientes e atendimentos são simulados.</p>
-            <RefreshDemoButton />
+          <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2 px-5 py-2 text-[13px] text-ink-soft">
+            <p>
+              {testData ? TEST_DATA_NOTICE : null}
+              {!gated ? `${testData ? " " : ""}Painel sem código de acesso: defina DEMO_ACCESS_CODE ou PAINEL_PASSCODE antes de compartilhar o link.` : null}
+            </p>
+            {!demo && demoAccessConfigured() ? <RefreshDemoButton /> : null}
           </div>
-        </div>
-      ) : null}
-      {demo || !gated ? (
-        <div className="border-b border-line bg-chip">
-          <p className="mx-auto max-w-[1200px] px-5 py-2 text-[13px] text-ink-soft">
-            {demo ? "Dados de demonstração gerados automaticamente: barbeiros, unidades e planos são reais; clientes, atendimentos e valores avulsos são simulados." : null}
-            {demo && !gated ? " " : null}
-            {!gated ? "Painel sem código de acesso: defina DEMO_ACCESS_CODE ou PAINEL_PASSCODE antes de compartilhar o link." : null}
-          </p>
         </div>
       ) : null}
       <main className="mx-auto flex max-w-[1200px] flex-col gap-6 px-5 pt-7 pb-16">{children}</main>

@@ -4,7 +4,7 @@ import { ChevronRight, Gift, Users } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { firstName } from "@/components/format";
 import { household } from "@/domain/household";
-import { upgradeOptions } from "@/domain/metrics";
+import { usageFromHistory } from "@/domain/plan-advice";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
 import { ClubPlans } from "./club-plans";
@@ -89,11 +89,10 @@ export default async function ClubPage({ searchParams }: { searchParams: Promise
 
       <ClubPlans
         plans={s.plans}
-        haircutCents={haircut?.priceCents ?? 0}
-        beardCents={beard?.priceCents ?? 0}
+        prices={{ haircutCents: haircut?.priceCents ?? 0, beardCents: beard?.priceCents ?? 0 }}
+        history={usageFromHistory(s, target?.customer.id ?? meId)}
         currentPlanId={target?.plan?.id ?? null}
         targetName={target && target.customer.id !== meId ? firstName(target.customer.name) : null}
-        upgrades={target?.plan ? upgradeOptions(s.plans, target.plan) : []}
         query={query.toString()}
       />
     </div>

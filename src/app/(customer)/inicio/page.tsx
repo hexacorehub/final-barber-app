@@ -30,7 +30,7 @@ export default async function HomePage() {
     <div className="flex flex-col gap-6 px-5 pt-5 md:gap-10 md:px-0 md:pt-8">
       {/* Web hero */}
       <section className="relative hidden overflow-hidden rounded-3xl bg-ink md:block">
-        <Photo src={s.shop.coverPhotoUrl} alt="Interior da barbearia" className="absolute inset-0 h-full w-full opacity-45" fallback="" />
+        <Photo src={s.shop.coverPhotoUrl} alt="Interior da barbearia" priority className="absolute inset-0 h-full w-full opacity-45" fallback="" />
         <div className="relative flex min-h-[300px] flex-col justify-end gap-4 p-10 text-white">
           <p className="text-sm text-[#e0e0e0]">
             {greeting(s.now)}, {firstName(me.customer.name)}
