@@ -181,3 +181,9 @@ alter table product_sales enable row level security;
 alter table product_reservations enable row level security;
 alter table plan_leads enable row level security;
 alter table gallery_photos enable row level security;
+
+-- Data API access: only the server's secret key (service_role) may touch these tables.
+-- Explicit so it works with "Automatically expose new tables" turned off (recommended).
+grant usage on schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+revoke all on all tables in schema public from anon, authenticated;
