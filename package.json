@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
-    "db:seed": "tsx scripts/seed-supabase.ts"
+    "db:seed": "tsx scripts/seed-supabase.ts",
+    "db:seed-sql": "tsx scripts/export-seed-sql.ts"
   },
   "dependencies": {
     "@fontsource/oswald": "^5.2.5",

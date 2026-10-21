@@ -80,7 +80,10 @@ Sem as duas do Supabase, o app roda com dados de demonstração em memória.
 
 1. Supabase → SQL Editor: rode [`supabase/schema.sql`](./supabase/schema.sql). (Se já rodou
    uma versão anterior, descomente o `drop table` no topo uma vez.)
-2. `.env` local com `SUPABASE_URL` e `SUPABASE_SECRET_KEY`, depois:
+2. **Sem instalar nada:** no SQL Editor, rode `supabase/seed.sql` (catálogo + conta do Rafael) e,
+   para o painel cheio, `supabase/seed-demo-1.sql` até o último, em ordem. Para atualizar as
+   datas do histórico, gere de novo com `pnpm db:seed-sql` e rode as partes outra vez.
+   **Ou pelo terminal:** `.env` local com `SUPABASE_URL` e `SUPABASE_SECRET_KEY`, depois:
    - `pnpm db:seed` — catálogo + a conta de demonstração (Rafael, Pedro e Antônio);
    - `pnpm db:seed --demo` — também o histórico simulado. **Apaga e recria** clientes, planos
      vendidos, atendimentos, vendas, pedidos e fotos: use só em ambiente de demonstração e
