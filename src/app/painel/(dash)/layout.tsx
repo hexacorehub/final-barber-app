@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { MustacheMark } from "@/components/brand";
 import { getStore, loadSnapshot } from "@/server/data/store";
 import { DemoBar } from "@/components/demo-bar";
-import { canSeeApp, hasDemoAccess } from "@/server/demo-access";
+import { canSeeApp, demoAccessConfigured, hasDemoAccess } from "@/server/demo-access";
 import { dashboardProtected, hasOwnerAccess, passcodeConfigured } from "@/server/owner-auth";
 import { leaveDashboard } from "../entrar/actions";
 import { OwnerNav } from "./owner-nav";
+import { RefreshDemoButton } from "./refresh-demo-button";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <OwnerNav />
         </div>
       </header>
+      {!demo && demoAccessConfigured() ? (
+        <div className="border-b border-line bg-chip">
+          <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2 px-5 py-2">
+            <p className="text-[13px] text-ink-soft">Ambiente de demonstração no Supabase: clientes e atendimentos são simulados.</p>
+            <RefreshDemoButton />
+          </div>
+        </div>
+      ) : null}
       {demo || !gated ? (
         <div className="border-b border-line bg-chip">
           <p className="mx-auto max-w-[1200px] px-5 py-2 text-[13px] text-ink-soft">

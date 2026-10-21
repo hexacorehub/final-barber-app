@@ -5,6 +5,9 @@ import "@fontsource/oswald/500.css";
 import "@fontsource/oswald/600.css";
 import "./globals.css";
 
+// The first visit on an empty Supabase project fills it with the catalog and demo data.
+export const maxDuration = 120;
+
 export const metadata: Metadata = {
   title: { default: "Mister Bigode", template: "%s · Mister Bigode" },
   description: "Agende, assine o Mister Club e acompanhe seus cortes.",

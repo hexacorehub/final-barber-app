@@ -73,6 +73,7 @@ A página `/convite/<código>` continua pública.
 | `DEMO_ACCESS_CODE` | recomendada | fecha o site e libera as duas visões com um código |
 | `PAINEL_PASSCODE` | opcional | código só do painel, quando não houver modo demonstração |
 | `FINAL_FINANCE_URL` | opcional | link do botão do Final Finance no financeiro |
+| `SEED_DEMO_HISTORY` | opcional | `false` para a carga automática trazer só catálogo e conta demo |
 
 Sem as duas do Supabase, o app roda com dados de demonstração em memória.
 
@@ -80,7 +81,12 @@ Sem as duas do Supabase, o app roda com dados de demonstração em memória.
 
 1. Supabase → SQL Editor: rode [`supabase/schema.sql`](./supabase/schema.sql). (Se já rodou
    uma versão anterior, descomente o `drop table` no topo uma vez.)
-2. **Sem instalar nada:** no SQL Editor, rode `supabase/seed.sql` (catálogo + conta do Rafael) e,
+2. **Nada mais a fazer:** na primeira visita ao site com as variáveis do Supabase, o app vê as
+   tabelas vazias e carrega sozinho o catálogo, a conta do Rafael e o histórico simulado
+   (uns 20 segundos nessa primeira vez). Para não carregar o histórico, defina
+   `SEED_DEMO_HISTORY=false`. No painel, o botão "Atualizar datas da demonstração" refaz o
+   histórico com datas a partir de hoje (aparece quando `DEMO_ACCESS_CODE` está definido).
+   **Alternativa manual:** no SQL Editor, rode `supabase/seed.sql` (catálogo + conta do Rafael) e,
    para o painel cheio, `supabase/seed-demo-1.sql` até o último, em ordem. Para atualizar as
    datas do histórico, gere de novo com `pnpm db:seed-sql` e rode as partes outra vez.
    **Ou pelo terminal:** `.env` local com `SUPABASE_URL` e `SUPABASE_SECRET_KEY`, depois:

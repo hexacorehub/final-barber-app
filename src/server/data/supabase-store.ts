@@ -20,6 +20,7 @@ import {
   unitFromRow,
 } from "./rows";
 import { referralCodeFor } from "@/domain/household";
+import { seedSupabase } from "./seed";
 import type { Store } from "./store";
 
 /** History window loaded for the dashboards (covers "mês anterior" and the six-month charts). */
@@ -50,12 +51,36 @@ async function fetchAll(db: SupabaseClient, table: string, since?: { column: str
   }
 }
 
+/** Whether the automatic first-run load includes the simulated history (default: yes). */
+export function seedsDemoHistory(): boolean {
+  return process.env.SEED_DEMO_HISTORY !== "false";
+}
+
+let firstRun: Promise<void> | null = null;
+
+/** Fills an empty project on first use, so no manual seeding is needed. */
+async function ensureSeeded(db: SupabaseClient): Promise<void> {
+  const { data, error } = await db.from("shop_settings").select("id").eq("id", 1).maybeSingle();
+  if (error) {
+    throw new Error(
+      `Supabase: não consegui ler as tabelas (${error.message}). Confira se o supabase/schema.sql foi rodado no SQL Editor e se a chave é a secreta (sb_secret_…).`,
+    );
+  }
+  if (data) return;
+  await seedSupabase(db, { history: seedsDemoHistory(), log: (l) => console.log(`[seed] ${l}`) });
+}
+
 export function createSupabaseStore(): Store {
   const db = createSupabaseAdmin();
 
   return {
     mode: "supabase",
     async snapshot(now) {
+      firstRun ??= ensureSeeded(db).catch((e) => {
+        firstRun = null;
+        throw e;
+      });
+      await firstRun;
       const since = new Date(now.getTime() - HISTORY_DAYS * 86_400_000).toISOString();
       const [shop, units, barbers, services, plans, products, customers, subscriptions, appointments, sales, reservations, leads, photos] = await Promise.all([
         db.from("shop_settings").select("*").eq("id", 1).maybeSingle(),
@@ -73,7 +98,7 @@ export function createSupabaseStore(): Store {
         fetchAll(db, "gallery_photos"),
       ]);
       if (shop.error) throw new Error(`Supabase: falha ao ler shop_settings: ${shop.error.message}`);
-      if (!shop.data) throw new Error("Supabase: tabela shop_settings vazia. Rode `pnpm db:seed`.");
+      if (!shop.data) throw new Error("Supabase: tabela shop_settings vazia.");
 
       const snapshot: Snapshot = {
         shop: shopFromRow(shop.data as Row),
@@ -92,6 +117,9 @@ export function createSupabaseStore(): Store {
         now: now.toISOString(),
       };
       return snapshot;
+    },
+    async reseedDemo() {
+      await seedSupabase(db, { history: true });
     },
     async createAppointments(items) {
       const rows = items.map((item) => ({ ...item, id: `appt-${crypto.randomUUID()}`, status: "scheduled" as const }));

@@ -18,6 +18,8 @@ export interface Store {
   createPlanLead(item: NewPlanLead): Promise<PlanLead>;
   /** A person managed by an account holder (son, father-in-law…). */
   createCustomer(item: NewCustomer): Promise<Customer>;
+  /** Supabase only: rebuild the demo history dated from today. */
+  reseedDemo?(): Promise<void>;
 }
 
 let store: Store | null = null;
