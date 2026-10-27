@@ -12,7 +12,9 @@ import {
   productStats,
   revenueMix,
 } from "@/domain/metrics";
-import { ownerDay } from "@/domain/assistants/owner-actions";
+import { actionsFor, ownerDay } from "@/domain/assistants/owner-actions";
+import { can, ROLE_LABEL } from "@/domain/access";
+import { currentStaff } from "@/server/staff";
 import { TodayPanel } from "./today-panel";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { painelSnapshot, painelUnit } from "@/server/painel-scope";
@@ -23,12 +25,25 @@ export const metadata: Metadata = { title: "Painel" };
 
 export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
   const s = await painelSnapshot();
+  const staff = (await currentStaff())!;
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
+  const seesShop = can(staff, "revenue") === "all" || can(staff, "revenue") === "units";
+  if (!seesShop) {
+    // A limited view: only the suggestions this person can act on, without the shop's money.
+    return (
+      <>
+        <PageHeader title={`Olá, ${staff.name.split(" ")[0]}`} path="/painel">
+          <p className="mt-1 text-sm text-muted">{ROLE_LABEL[staff.role]} · o que fazer hoje no seu acesso</p>
+        </PageHeader>
+        <TodayPanel day={actionsFor(ownerDay(s), staff)} showMoney={false} />
+      </>
+    );
+  }
   const mix = revenueMix(s, range);
   const barbers = barberRevenue(s, range);
   const club = clubTotals(s, range);
   const plans = planIndicators(s, range);
-  const day = ownerDay(s);
+  const day = actionsFor(ownerDay(s), staff);
   const unit = await painelUnit();
   const units = unit ? [] : unitBreakdown(s, range);
   const sellers = plansSoldByBarber(s, range).slice(0, 5);

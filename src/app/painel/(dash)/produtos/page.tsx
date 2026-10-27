@@ -6,6 +6,9 @@ import { Badge, Stat } from "@/components/ui";
 import { periodRange, productStats } from "@/domain/metrics";
 import { formatInt, formatMoney, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot } from "@/server/painel-scope";
 import { AssistantSays, AssistantTag } from "@/components/assistant";
 import { stockForecast } from "@/domain/assistants/shelf";
@@ -15,8 +18,11 @@ export const metadata: Metadata = { title: "Produtos" };
 const CATEGORY = { hair: "Cabelo", beard: "Barba", skin: "Pele", accessory: "Acessórios" } as const;
 
 export default async function ProductsDashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const staff = (await currentStaff())!;
+  if (!can(staff, "products")) return <NoAccessPage title="Produtos" what="produtos" />;
   const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
+  const showMoney = can(staff, "revenue") === "all" || can(staff, "revenue") === "units";
   const stats = productStats(s, range);
   const revenue = stats.reduce((t, p) => t + p.revenueCents, 0);
   const margin = stats.reduce((t, p) => t + p.marginCents, 0);
@@ -41,8 +47,14 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
       </PageHeader>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        <Stat dark label="Vendas de produtos" value={formatMoneyRound(revenue)} hint={`${formatInt(units)} unidades`} />
-        <Stat label="Margem bruta" value={formatMoneyRound(margin)} hint={revenue ? `${formatPercent(margin / revenue)} da venda` : undefined} />
+        {showMoney ? (
+          <>
+            <Stat dark label="Vendas de produtos" value={formatMoneyRound(revenue)} hint={`${formatInt(units)} unidades`} />
+            <Stat label="Margem bruta" value={formatMoneyRound(margin)} hint={revenue ? `${formatPercent(margin / revenue)} da venda` : undefined} />
+          </>
+        ) : (
+          <Stat dark label="Unidades vendidas" value={formatInt(units)} hint="no período" />
+        )}
         <Stat label="Reservas pelo app" value={formatInt(reservations.length)} hint="para retirar na próxima visita" />
         <Stat label="Estoque baixo" value={formatInt(low.length)} hint={low.length ? "repor antes de acabar" : "tudo em dia"} />
       </div>
@@ -92,8 +104,8 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
                 {p.lowStock ? <Badge tone={p.product.stock === 0 ? "bad" : "warn"}>{p.product.stock} un.</Badge> : `${p.product.stock} un.`}
               </td>
               <td className="text-right">{p.units}</td>
-              <td className="text-right font-semibold">{formatMoneyRound(p.revenueCents)}</td>
-              <td className="text-right">{formatMoneyRound(p.marginCents)}</td>
+              <td className="text-right font-semibold">{showMoney ? formatMoneyRound(p.revenueCents) : "—"}</td>
+              <td className="text-right">{showMoney ? formatMoneyRound(p.marginCents) : "—"}</td>
               <td className="text-right">{p.reserved || "—"}</td>
               <td className="text-right whitespace-nowrap">
                 {(() => {
@@ -132,6 +144,15 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
           <Empty>Nenhuma reserva aberta.</Empty>
         )}
       </Panel>
+    </>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
     </>
   );
 }

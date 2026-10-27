@@ -19,7 +19,7 @@ const KIND: Record<ActionKind, { label: string; plural: string; tone: "bad" | "w
 const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "win_back", "fill_gap", "member_late", "low_stock"];
 
 /** The Gerente assistant on the overview: what to do today, by money involved. */
-export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) {
+export function TodayPanel({ day, show = 5, showMoney = true }: { day: OwnerDay; show?: number; showMoney?: boolean }) {
   const counts = new Map<ActionKind, number>();
   for (const a of day.actions) counts.set(a.kind, (counts.get(a.kind) ?? 0) + 1);
   // Always show variety: the top action of each kind first, then by value.
@@ -35,10 +35,10 @@ export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) 
             <AssistantTag />
           </div>
           <p className="text-[13px] text-muted">
-            O que fazer hoje, em ordem de valor. Assinaturas contam {MONTHS_AT_STAKE} meses de mensalidade.
+            {showMoney ? `O que fazer hoje, em ordem de valor. Assinaturas contam ${MONTHS_AT_STAKE} meses de mensalidade.` : "O que fazer hoje, em ordem de prioridade."}
           </p>
         </div>
-        <div className="flex gap-5 text-right">
+        <div className={showMoney ? "flex gap-5 text-right" : "hidden"}>
           <div>
             <p className="text-[13px] text-muted">Para segurar</p>
             <p className="font-display text-2xl">{formatMoneyCompact(day.keepCents)}</p>
@@ -61,7 +61,7 @@ export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) 
               <p className="text-[13px] leading-relaxed text-muted">{a.reason}</p>
             </div>
             <div className="flex items-center gap-3 md:justify-end">
-              {a.valueCents ? <span className="text-sm font-semibold md:w-28 md:text-right">{formatMoneyRound(a.valueCents)}</span> : null}
+              {a.valueCents && showMoney ? <span className="text-sm font-semibold md:w-28 md:text-right">{formatMoneyRound(a.valueCents)}</span> : null}
               {a.message ? (
                 <WhatsAppButton phone={a.message.to.phone} text={a.message.text} label="Mensagem" track={{ kind: a.kind, customerId: a.message.aboutId }} />
               ) : (

@@ -4,6 +4,9 @@ import { DataTable, Legend, PageHeader, Panel, SOURCE_SEGMENTS, StackedBar, pars
 import { Badge, Stat, buttonStyles, cn } from "@/components/ui";
 import { barberRevenue, clubTotals, periodRange, referralStats, revenueMix, upcomingClubCharges } from "@/domain/metrics";
 import { formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot, painelUnit } from "@/server/painel-scope";
 import { legalEntities } from "@/domain/legal-entities";
 import { unitBreakdown } from "@/domain/units";
@@ -19,6 +22,8 @@ export const metadata: Metadata = { title: "Financeiro" };
  * belong to Final Finance — this page points there instead of rebuilding them.
  */
 export default async function FinancePage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const staff = (await currentStaff())!;
+  if (!can(staff, "finance")) return <NoAccessPage title="Financeiro" what="o financeiro" />;
   const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const mix = revenueMix(s, range);
@@ -236,6 +241,15 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           {exportOn ? "." : " (ainda não definido)."} Cada lançamento tem uma chave fixa: reenviar o mesmo dia atualiza, não duplica. Formato completo em docs/finance-contract.md.
         </p>
       </Panel>
+    </>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
     </>
   );
 }

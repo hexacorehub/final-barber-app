@@ -4,23 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui";
 
-const ITEMS = [
-  { href: "/painel", label: "Visão geral" },
-  { href: "/painel/assistente", label: "Assistente" },
-  { href: "/painel/barbeiros", label: "Barbeiros" },
-  { href: "/painel/clube", label: "Mister Club" },
-  { href: "/painel/assinaturas", label: "Assinaturas" },
-  { href: "/painel/candidatos", label: "Candidatos" },
-  { href: "/painel/whatsapp", label: "WhatsApp" },
-  { href: "/painel/produtos", label: "Produtos" },
-  { href: "/painel/financeiro", label: "Financeiro" },
-];
+export interface NavItem {
+  href: string;
+  label: string;
+}
 
-export function OwnerNav() {
+export function OwnerNav({ items }: { items: NavItem[] }) {
   const path = usePathname();
   return (
     <nav aria-label="Seções do painel" className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto">
-      {ITEMS.map((i) => {
+      {items.map((i) => {
         const active = i.href === "/painel" ? path === "/painel" : path.startsWith(i.href);
         return (
           <Link

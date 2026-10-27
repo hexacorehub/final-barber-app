@@ -186,6 +186,32 @@ create table if not exists assistant_actions (
 );
 create index if not exists assistant_actions_created_idx on assistant_actions (created_at);
 
+-- Team access (dashboard roles). The owner enters with PAINEL_PASSCODE; with STAFF_LOGIN=on the
+-- team signs in with e-mail and password (scrypt hash).
+create table if not exists staff (
+  id text primary key,
+  name text not null,
+  email text not null unique,
+  role text not null check (role in ('owner','manager','reception','barber')),
+  unit_ids text[] not null default '{}',
+  barber_id text references barbers(id),
+  overrides jsonb not null default '{}',
+  active boolean not null default true,
+  password_hash text
+);
+create table if not exists staff_sessions (
+  token_hash text primary key,
+  staff_id text not null references staff(id) on delete cascade,
+  expires_at timestamptz not null
+);
+create table if not exists staff_audit (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  actor text not null,
+  target text not null,
+  change text not null
+);
+
 alter table shop_settings enable row level security;
 alter table units enable row level security;
 alter table barbers enable row level security;
@@ -200,6 +226,9 @@ alter table product_reservations enable row level security;
 alter table plan_leads enable row level security;
 alter table gallery_photos enable row level security;
 alter table assistant_actions enable row level security;
+alter table staff enable row level security;
+alter table staff_sessions enable row level security;
+alter table staff_audit enable row level security;
 
 -- Data API access: only the server's secret key (service_role) may touch these tables.
 -- Explicit so it works with "Automatically expose new tables" turned off (recommended).

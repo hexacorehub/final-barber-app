@@ -5,6 +5,7 @@ import { clubCandidates, type ClubCandidate } from "./candidates";
 import * as say from "./phrases";
 import { subscriptionRows, winBackList } from "./subscriptions";
 import { gapsFor } from "./gap-fill";
+import { can, covers, type Permission, type StaffMember } from "../access";
 
 /**
  * "Hoje na barbearia": what the owner should do today, ordered by the money involved.
@@ -28,6 +29,8 @@ export interface OwnerAction {
   message: { to: Customer; aboutId: string; text: string } | null;
   /** Screen with the details. */
   href: string;
+  /** The barber it is about, when there is one (for "own" access). */
+  barberId?: string | null;
 }
 
 export interface OwnerDay {
@@ -85,6 +88,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         valueCents: value,
         message: null,
         href: "/painel/candidatos",
+        barberId: c.moment.barberId,
       });
     } else if (c.chance === "alta" && c.moment.kind !== "scheduled") {
       actions.push({
@@ -96,6 +100,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         valueCents: value,
         message: { to: c.decider, aboutId: c.customer.id, text: say.inviteMessage(c, n) },
         href: "/painel/candidatos",
+        barberId: c.offerBarberId,
       });
     }
   }
@@ -147,6 +152,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
       valueCents: g.offers.reduce((t, x) => t + x.visitCents, 0),
       message: { to: o.to, aboutId: o.customer.id, text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) },
       href: "/painel/barbeiros#encaixe",
+      barberId: g.barber.id,
     });
   }
 
@@ -166,6 +172,33 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
 
   const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, win_back: 5, fill_gap: 6, low_stock: 7 };
   actions.sort((a, b) => b.valueCents - a.valueCents || order[a.kind] - order[b.kind]);
+  return {
+    actions,
+    keepCents: actions.filter((a) => a.money === "keep").reduce((t, a) => t + a.valueCents, 0),
+    winCents: actions.filter((a) => a.money === "win").reduce((t, a) => t + a.valueCents, 0),
+  };
+}
+
+
+const NEEDS: Record<ActionKind, Permission> = {
+  card_declined: "subscriptions",
+  member_late: "subscriptions",
+  win_back: "subscriptions",
+  plan_request: "requests",
+  offer_in_person: "candidates",
+  club_invite: "candidates",
+  fill_gap: "agenda",
+  low_stock: "products",
+};
+
+/** Only the suggestions this person's access covers. */
+const MARKETING: ActionKind[] = ["club_invite", "win_back", "fill_gap"];
+
+export function actionsFor(day: OwnerDay, m: StaffMember): OwnerDay {
+  const actions = day.actions
+    .filter((a) => covers(m, can(m, NEEDS[a.kind]), { barberId: a.barberId ?? null }))
+    // The ready message only for who may send that kind of message.
+    .map((a) => (a.message && !can(m, MARKETING.includes(a.kind) ? "messages_marketing" : "messages_utility") ? { ...a, message: null } : a));
   return {
     actions,
     keepCents: actions.filter((a) => a.money === "keep").reduce((t, a) => t + a.valueCents, 0),

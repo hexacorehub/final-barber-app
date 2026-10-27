@@ -10,6 +10,9 @@ import { weeklyBrief } from "@/domain/assistants/weekly-brief";
 import { SITUATIONS, type Situation } from "@/domain/assistants/outbox";
 import { formatInt, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot } from "@/server/painel-scope";
 import { actionLog } from "@/server/assistants/log";
 import { aiProvider, write } from "@/server/assistants/writer";
@@ -26,6 +29,8 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default async function AssistantPage() {
+  const staff = (await currentStaff())!;
+  if (can(staff, "revenue") !== "all" && can(staff, "revenue") !== "units") return <NoAccessPage title="Assistente" what="o assistente do negócio" />;
   const s = await painelSnapshot();
   const brief = weeklyBrief(s);
   const headline = await write({ task: "resumo da semana para o dono", fallback: brief.headline, numbers: brief.numbers });
@@ -138,6 +143,15 @@ export default async function AssistantPage() {
         </p>
         <p className="mt-2">Texto por IA: {provider === "none" ? "desligado (sem custo)." : `ligado (${provider}).`}</p>
       </div>
+    </>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
     </>
   );
 }

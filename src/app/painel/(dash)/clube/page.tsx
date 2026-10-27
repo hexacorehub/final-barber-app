@@ -10,6 +10,9 @@ import { inviteMessage, namesFor } from "@/domain/assistants/phrases";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, monthShort, shortDate } from "@/domain/time";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Mister Club" };
@@ -17,6 +20,8 @@ export const metadata: Metadata = { title: "Mister Club" };
 const short = (name: string) => name.replace("Mister Club ", "");
 
 export default async function ClubDashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const staff = (await currentStaff())!;
+  if (!can(staff, "subscriptions")) return <NoAccessPage title="Mister Club" what="o Mister Club" />;
   const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const totals = clubTotals(s, range);
@@ -322,5 +327,14 @@ function WhatsAppLink({ href, label }: { href: string; label: string }) {
     <a href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border-[1.5px] border-ink px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-chip">
       <MessageCircle size={15} aria-hidden="true" /> {label}
     </a>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
+    </>
   );
 }

@@ -4,6 +4,9 @@ import { DataTable, PageHeader, Panel, parsePeriod } from "@/components/dashboar
 import { Meter } from "@/components/ui";
 import { barberRevenue, periodRange } from "@/domain/metrics";
 import { formatInt, formatMoneyRound, formatPercent } from "@/domain/money";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot } from "@/server/painel-scope";
 import { AssistantTag, WhatsAppButton } from "@/components/assistant";
 import { Badge } from "@/components/ui";
@@ -14,14 +17,19 @@ import { addDays, dayKey, hhmm } from "@/domain/time";
 export const metadata: Metadata = { title: "Barbeiros" };
 
 export default async function BarbersPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const staff = (await currentStaff())!;
+  if (!can(staff, "revenue") && !can(staff, "agenda")) return <NoAccessPage title="Barbeiros" what="barbeiros" />;
   const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
-  const all = barberRevenue(s, range, { includeInactive: true });
+  const revenueGrant = can(staff, "revenue");
+  const own = revenueGrant === "own" || can(staff, "agenda") === "own";
+  const canOffer = Boolean(can(staff, "messages_marketing"));
+  const all = barberRevenue(s, range, { includeInactive: true }).filter((b) => !own || b.barber.id === staff.barberId);
   const active = all.filter((b) => b.barber.active);
   const inactive = all.filter((b) => !b.barber.active);
   const total = active.reduce((t, b) => t + b.totalCents, 0);
   const tomorrow = addDays(dayKey(s.now), 1);
-  const gaps = gapsFor(s, tomorrow);
+  const gaps = gapsFor(s, tomorrow).filter((g) => !own || g.barber.id === staff.barberId);
   const n = namesFor(s);
 
   const rows = (list: typeof all) =>
@@ -70,11 +78,13 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Barbeiros" range={range} path="/painel/barbeiros" />
-      <Panel title="Faturamento por barbeiro ativo" note="Calculado a partir dos atendimentos concluídos, das cobranças do clube e das vendas de produtos.">
-        <DataTable minWidth={980} head={head}>
-          {rows(active)}
-        </DataTable>
-      </Panel>
+      {revenueGrant ? (
+        <Panel title={own ? "Seu faturamento" : "Faturamento por barbeiro ativo"} note="Calculado a partir dos atendimentos concluídos, das cobranças do clube e das vendas de produtos.">
+          <DataTable minWidth={980} head={head}>
+            {rows(active)}
+          </DataTable>
+        </Panel>
+      ) : null}
       <div id="encaixe" className="scroll-mt-6">
         <Panel
           title={`Encaixe de ${dayWords(tomorrow, s.now)}`}
@@ -100,7 +110,9 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
                           <span className="text-[13px] text-muted">
                             {o.lateByDays > 0 ? `${o.lateByDays} dias além do ritmo` : o.lateByDays === 0 ? "no ponto de voltar" : `volta em ${-o.lateByDays} dias`}
                           </span>
-                          <WhatsAppButton phone={o.to.phone} text={gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n)} label="Oferecer" className="ml-auto" track={{ kind: "gap_offer", customerId: o.customer.id }} />
+                          {canOffer ? (
+                            <WhatsAppButton phone={o.to.phone} text={gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n)} label="Oferecer" className="ml-auto" track={{ kind: "gap_offer", customerId: o.customer.id }} />
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -115,20 +127,29 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
           )}
         </Panel>
       </div>
-      {inactive.length ? (
+      {inactive.length && revenueGrant && !own ? (
         <Panel title="Desligados com atendimentos no período" note="Ficam fora do ranking e das metas, mas entram no fechamento.">
           <DataTable minWidth={980} head={head}>
             {rows(inactive)}
           </DataTable>
         </Panel>
       ) : null}
-      <div className="rounded-2xl bg-chip p-5 text-sm text-ink-soft">
+      <div className={revenueGrant ? "rounded-2xl bg-chip p-5 text-sm text-ink-soft" : "hidden"}>
         <p className="font-semibold text-ink">Como a receita do clube é dividida</p>
         <p className="mt-1">
           O valor cobrado dos assinantes no período é rateado entre os barbeiros pelo valor de tabela dos serviços que cada um fez pelo clube. Quem atendeu mais assinantes
           (ou serviços mais caros) recebe uma parte maior. A regra pode ser trocada (por atendimento, valor fixo por barbeiro) conforme o combinado da barbearia.
         </p>
       </div>
+    </>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
     </>
   );
 }

@@ -8,6 +8,9 @@ import { cardDeclined, memberLate, namesFor, planShort, winBack, type Names } fr
 import { formatInt, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
 import type { SalesChannel } from "@/domain/types";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
 import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Assinaturas" };
@@ -30,6 +33,8 @@ const PERIODS = [
 ];
 
 export default async function SubscriptionsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const staff = (await currentStaff())!;
+  if (!can(staff, "subscriptions")) return <NoAccessPage title="Assinaturas" what="assinaturas e cancelamentos" />;
   const s = await painelSnapshot();
   const q = await searchParams;
   const n = namesFor(s);
@@ -41,6 +46,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
     plan: q.plano || undefined,
     days: q.periodo ? Number(q.periodo) || undefined : undefined,
   };
+  const perms = { utility: Boolean(can(staff, "messages_utility")), marketing: Boolean(can(staff, "messages_marketing")) };
   const all = subscriptionRows(s);
   const rows = filterRows(all, filter, s.now);
   const sum = summarizeRows(rows);
@@ -166,7 +172,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                       {r.sub.cancelReason ? ` · motivo: ${r.sub.cancelReason.toLowerCase()}` : ""}
                     </span>
                   </div>
-                  <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar de volta" track={{ kind: "win_back", customerId: r.customer.id }} />
+                  {perms.marketing ? <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar de volta" track={{ kind: "win_back", customerId: r.customer.id }} /> : null}
                 </li>
               ))}
             </ul>
@@ -217,7 +223,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                 </td>
                 <td className="text-[13px] whitespace-nowrap">{r.lastVisit ? shortDate(r.lastVisit) : "—"}</td>
                 <td className="text-right">
-                  <RowAction r={r} n={n} />
+                  <RowAction r={r} n={n} perms={perms} />
                 </td>
               </tr>
             ))}
@@ -237,7 +243,8 @@ function StatusBadge({ r }: { r: SubRow }) {
   return <Badge tone="ok">Ativa</Badge>;
 }
 
-function RowAction({ r, n }: { r: SubRow; n: Names }) {
+function RowAction({ r, n, perms }: { r: SubRow; n: Names; perms: { utility: boolean; marketing: boolean } }) {
+  if (r.status === "canceled" ? !perms.marketing : !perms.utility) return null;
   if (r.status === "risk" && r.riskReason === "past_due") return <WhatsAppButton phone={r.payer.phone} text={cardDeclined(r.payer, r.plan)} label="Enviar Pix" track={{ kind: "card_declined", customerId: r.customer.id }} />;
   if (r.status === "risk") return <WhatsAppButton phone={r.payer.phone} text={memberLate(r.payer, r.plan, r.daysSinceVisit ?? 0, r.seller?.id ?? null, n)} label="Lembrar" track={{ kind: "member_late", customerId: r.customer.id }} />;
   if (r.status === "canceled" && r.winBack) return <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar" track={{ kind: "win_back", customerId: r.customer.id }} />;
@@ -262,5 +269,14 @@ function Chip({ href, active, label }: { href: string; active: boolean; label: s
     >
       {label}
     </Link>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
+    </>
   );
 }

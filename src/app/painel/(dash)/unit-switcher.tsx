@@ -4,9 +4,10 @@ import { useTransition } from "react";
 import { MapPin } from "lucide-react";
 import { choosePainelUnit } from "./unit-actions";
 
-export function UnitSwitcher({ units, current }: { units: { id: string; name: string }[]; current: string | null }) {
+export function UnitSwitcher({ units, current, allowAll = true }: { units: { id: string; name: string }[]; current: string | null; allowAll?: boolean }) {
   const [pending, start] = useTransition();
-  if (units.length < 2) return null;
+  if (units.length < 2 && allowAll) return null;
+  if (units.length < 2) return <span className="flex min-h-11 items-center gap-1.5 px-2 text-[13px] text-[#d6d6d6]"><MapPin size={15} aria-hidden="true" />{units[0]?.name}</span>;
   return (
     <label className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-[13px] text-[#d6d6d6]">
       <MapPin size={15} aria-hidden="true" />
@@ -17,7 +18,7 @@ export function UnitSwitcher({ units, current }: { units: { id: string; name: st
         onChange={(e) => start(() => choosePainelUnit(e.target.value))}
         className="rounded-md bg-transparent py-1 text-white outline-none [&>option]:text-ink"
       >
-        <option value="">Todas as unidades</option>
+        {allowAll ? <option value="">Todas as unidades</option> : null}
         {units.map((u) => (
           <option key={u.id} value={u.id}>
             {u.name}
