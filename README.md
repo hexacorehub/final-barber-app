@@ -49,6 +49,27 @@ Todos os números vêm de `src/domain/metrics.ts`; regras de conta em `src/domai
 - **Região:** `vercel.json` coloca as funções em São Paulo (`gru1`), perto do Supabase em
   sa-east-1. Se o seu Supabase estiver em outra região, ajuste.
 
+## Assistentes
+
+O painel tem assistentes que leem os dados da barbearia e dizem o que fazer. Hoje todos
+funcionam por regras (etiqueta **Assistente**); a etiqueta **Assistente · IA** fica para quando
+um texto for escrito por um modelo. Os números saem sempre das funções de `src/domain/`, com
+testes em `tests/assistants.test.ts`.
+
+- **Hoje na barbearia** (`/painel`, `src/domain/assistants/owner-actions.ts`): cartões recusados,
+  assinantes sumidos, pedidos de plano, ofertas no balcão, convites e estoque, em ordem de valor
+  (assinaturas contam 3 meses de mensalidade), cada um com o motivo e a mensagem pronta.
+- **Candidatos ao clube** (`/painel/candidatos`, `candidates.ts`): quem paga por visita e ficaria
+  igual ou melhor num plano, pelas visitas dos últimos 90 dias. Cada plano é comparado com o que
+  cobre e o que fica pago à parte. Nota de 0 a 100 (economia, frequência, regularidade,
+  visita recente), chance alta/média/baixa, quem deve oferecer e quando, funil e potencial de
+  receita recorrente. "Quase lá" (compensa com uma visita a mais) nunca passa de chance baixa.
+- **WhatsApp** (`/painel/whatsapp`, `outbox.ts`): as mensagens do dia por situação (lembrete na
+  véspera, pós-atendimento, falta, hora do corte, assinante sumido, cartão recusado, convite,
+  pedido de plano, boas-vindas), com limite diário para marketing e o tempo de recepção que
+  elas tomam à mão, pelo movimento dos últimos 30 dias. Sem integração: cada mensagem abre no
+  WhatsApp com um toque (`wa.me`); com a API oficial conectada, a mesma fila sai sozinha.
+
 ## Regras de negócio
 
 **Contas e planos da família**
@@ -150,7 +171,8 @@ cada barbeiro, comissões, produtos, vantagens e termos de cada plano, e as foto
 ## Ainda não integrado
 
 Pagamento (conta no CNPJ da barbearia + split), login do cliente (o app abre como o Rafael),
-upload de fotos (Supabase Storage), envio automático no WhatsApp e integração com o Final Finance.
+upload de fotos (Supabase Storage), envio automático no WhatsApp (a fila já está pronta em
+`/painel/whatsapp`) e integração com o Final Finance.
 
 ## Rodar localmente
 

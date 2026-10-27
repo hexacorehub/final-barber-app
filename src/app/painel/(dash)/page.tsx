@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { DataTable, Empty, Legend, PageHeader, Panel, SOURCE_SEGMENTS, StackedBar, parsePeriod } from "@/components/dashboard";
 import { Badge, Stat } from "@/components/ui";
-import { firstName } from "@/components/format";
 import {
   barberRevenue,
   clubTotals,
@@ -11,10 +10,10 @@ import {
   planIndicators,
   plansSoldByBarber,
   productStats,
-  retentionRisk,
   revenueMix,
-  upsellCandidates,
 } from "@/domain/metrics";
+import { ownerDay } from "@/domain/assistants/owner-actions";
+import { TodayPanel } from "./today-panel";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { loadSnapshot } from "@/server/data/store";
 
@@ -27,12 +26,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const barbers = barberRevenue(s, range);
   const club = clubTotals(s, range);
   const plans = planIndicators(s, range);
-  const upsell = upsellCandidates(s);
-  const risk = retentionRisk(s);
+  const day = ownerDay(s);
   const sellers = plansSoldByBarber(s, range).slice(0, 5);
   const products = productStats(s, range);
-  const lowStock = products.filter((p) => p.lowStock && p.product.active);
-  const leads = s.leads.filter((l) => !s.subscriptions.some((x) => x.customerId === l.customerId && x.planId === l.planId && x.status !== "canceled"));
   const occupancy = barbers.length ? barbers.reduce((t, b) => t + b.occupancy, 0) / barbers.length : 0;
   const maxBarber = Math.max(...barbers.map((b) => b.totalCents), 1);
   const qs = range.id === "mes" ? "" : `?periodo=${range.id}`;
@@ -40,6 +36,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader title="Visão geral" range={range} path="/painel" />
+
+      <TodayPanel day={day} />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Faturamento" value={formatMoneyCompact(mix.totalCents)} hint={`${formatInt(mix.completed)} atendimentos`} />
@@ -123,14 +121,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           </DataTable>
         </Panel>
 
-        <Panel title="Indicações automáticas" className="flex-[1_1_320px]" note="O que o sistema sugere fazer agora">
-          <ul className="flex flex-col divide-y divide-line-soft">
-            <Suggestion href="/painel/clube#indicar" count={upsell.length} title="Clientes que economizariam no clube" detail={upsell[0] ? `Ex.: ${firstName(upsell[0].customer.name)} pagaria ${formatMoneyRound(upsell[0].monthlySavingCents)} a menos no ${upsell[0].plan.name.replace("Mister Club ", "")}` : "Ninguém no momento"} />
-            <Suggestion href="/painel/clube#interessados" count={leads.length} title="Pedidos de plano pelo app" detail={`${leads.filter((l) => l.kind === "upgrade").length} trocas para plano maior · confirme no WhatsApp`} />
-            <Suggestion href="/painel/clube#risco" count={risk.length} title="Assinantes em risco" detail={`${risk.filter((r) => r.reason === "past_due").length} com pagamento recusado · ${risk.filter((r) => r.reason === "late").length} sumidos`} />
-            <Suggestion href="/painel/produtos" count={lowStock.length} title="Produtos acabando" detail={lowStock.map((p) => p.product.name).slice(0, 2).join(", ") || "Estoque em dia"} />
-          </ul>
-        </Panel>
       </div>
 
       <div className="flex flex-wrap gap-6">
@@ -175,20 +165,5 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </Panel>
       </div>
     </>
-  );
-}
-
-function Suggestion({ href, count, title, detail }: { href: string; count: number; title: string; detail: string }) {
-  return (
-    <li>
-      <Link href={href} className="flex items-center gap-4 px-5 py-3.5 hover:bg-chip">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ink font-display text-white">{count}</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-sm font-semibold">{title}</span>
-          <span className="truncate text-xs text-muted">{detail}</span>
-        </span>
-        <ArrowRight size={16} aria-hidden="true" />
-      </Link>
-    </li>
   );
 }
