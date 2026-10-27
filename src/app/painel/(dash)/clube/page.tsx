@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { MessageCircle } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import { DataTable, Empty, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
 import { Badge, Meter, Stat } from "@/components/ui";
 import { messages, whatsappMessage } from "@/components/whatsapp";
-import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralStats, retentionRisk, upsellCandidates } from "@/domain/metrics";
+import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralStats, retentionRisk } from "@/domain/metrics";
+import { clubCandidates } from "@/domain/assistants/candidates";
+import { inviteMessage, namesFor } from "@/domain/assistants/phrases";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, monthShort, shortDate } from "@/domain/time";
@@ -20,7 +23,8 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
   const plans = planIndicators(s, range);
   const history = memberHistory(s, 6);
   const maxMembers = Math.max(...history.map((h) => h.members), 1);
-  const upsell = upsellCandidates(s);
+  const candidates = clubCandidates(s);
+  const names = namesFor(s);
   const risk = retentionRisk(s);
   const sellers = plansSoldByBarber(s, range);
   const customers = new Map(s.customers.map((c) => [c.id, c]));
@@ -91,39 +95,49 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       </Panel>
 
       <div id="indicar" className="scroll-mt-6">
-        <Panel title="Indique o clube para estes clientes" note="Pagam por visita e gastariam menos num plano, pelo que consumiram nos últimos 90 dias">
-          {upsell.length ? (
+        <Panel
+          title="Candidatos ao clube"
+          note="Pagam por visita e ficariam iguais ou melhores num plano, pelas visitas dos últimos 90 dias"
+          action={
+            <Link href="/painel/candidatos" className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+              Análise completa <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          }
+        >
+          {candidates.length ? (
             <DataTable
               minWidth={760}
               head={
                 <>
                   <th>Cliente</th>
                   <th className="text-right">Visitas/mês</th>
-                  <th className="text-right">Gasta/mês</th>
+                  <th className="text-right">Paga/mês</th>
                   <th>Plano indicado</th>
-                  <th className="text-right">Economia/mês</th>
+                  <th className="text-right">No plano</th>
                   <th className="text-right">Ação</th>
                 </>
               }
             >
-              {upsell.slice(0, 15).map((u) => (
-                <tr key={u.customer.id}>
+              {candidates.slice(0, 8).map((c) => (
+                <tr key={c.customer.id}>
                   <td>
-                    <span className="font-semibold">{u.customer.name}</span>
-                    <span className="block text-xs text-muted">Última visita {shortDate(u.lastVisit)}</span>
+                    <span className="font-semibold">{c.customer.name}</span>
+                    <span className="block text-xs text-muted">
+                      {c.chance === "alta" ? "Alta chance" : c.chance === "media" ? "Média chance" : "Baixa chance"} · última visita {c.stats.lastVisit ? shortDate(c.stats.lastVisit) : "—"}
+                    </span>
                   </td>
-                  <td className="text-right">{u.visitsPerMonth.toLocaleString("pt-BR")}</td>
-                  <td className="text-right">{formatMoneyRound(u.monthlySpendCents)}</td>
-                  <td>{short(u.plan.name)}</td>
-                  <td className="text-right font-semibold">{formatMoneyRound(u.monthlySavingCents)}</td>
+                  <td className="text-right">{c.stats.visitsPerMonth.toLocaleString("pt-BR")}</td>
+                  <td className="text-right">{formatMoneyRound(c.payNowCents)}</td>
+                  <td>{short(c.plan.name)}</td>
+                  <td className="text-right font-semibold">{formatMoneyRound(c.inPlanCents)}</td>
                   <td className="text-right">
-                    <WhatsAppLink href={whatsappMessage(u.customer.phone, messages.invite(u.customer.name, short(u.plan.name), formatMoneyRound(u.monthlySavingCents)))} label="Convidar" />
+                    <WhatsAppLink href={whatsappMessage(c.decider.phone, inviteMessage(c, names))} label="Convidar" />
                   </td>
                 </tr>
               ))}
             </DataTable>
           ) : (
-            <Empty>Nenhum cliente avulso gastaria menos no clube agora.</Empty>
+            <Empty>Nenhum cliente avulso com perfil de assinante agora.</Empty>
           )}
         </Panel>
       </div>

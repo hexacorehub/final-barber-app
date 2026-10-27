@@ -8,6 +8,8 @@ const ITEMS = [
   { href: "/painel", label: "Visão geral" },
   { href: "/painel/barbeiros", label: "Barbeiros" },
   { href: "/painel/clube", label: "Mister Club" },
+  { href: "/painel/candidatos", label: "Candidatos" },
+  { href: "/painel/whatsapp", label: "WhatsApp" },
   { href: "/painel/produtos", label: "Produtos" },
   { href: "/painel/financeiro", label: "Financeiro" },
 ];
