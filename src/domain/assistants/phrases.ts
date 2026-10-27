@@ -204,3 +204,12 @@ export function winBack(to: Customer, plan: Plan, months: number, visitsAfterCan
     `${first(to.name)}, tudo bem? O Mister Club ${planShort(plan)} continua disponível para você.${still} Se quiser voltar, eu reativo por aqui mesmo.`,
   ]);
 }
+
+export function gapOffer(to: Customer, about: Customer, barberId: string, day: string, start: number, now: string, n: Names): string {
+  const who = about.id === to.id ? "você" : `o ${first(about.name)}`;
+  const at = start % 60 ? hhmm(start).replace(":", "h") : `${start / 60}h`;
+  return pick(`${about.id}-gap-${day}`, [
+    `Oi, ${first(to.name)}! Abriu um horário com ${n.barber(barberId)} ${dayWords(day, now)} às ${at}. Quer que eu reserve para ${who}?`,
+    `${first(to.name)}, ${n.barber(barberId)} tem um horário livre ${dayWords(day, now)} às ${at}, bem no horário de costume. Reservo para ${who}?`,
+  ]);
+}

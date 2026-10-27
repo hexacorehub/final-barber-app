@@ -1,9 +1,10 @@
 import type { Customer, Snapshot } from "../types";
-import { addDays, dayKey, daysBetween } from "../time";
+import { addDays, dayKey, daysBetween, hhmm } from "../time";
 import { productStats, retentionRisk } from "../metrics";
 import { clubCandidates, type ClubCandidate } from "./candidates";
 import * as say from "./phrases";
 import { subscriptionRows, winBackList } from "./subscriptions";
+import { gapsFor } from "./gap-fill";
 
 /**
  * "Hoje na barbearia": what the owner should do today, ordered by the money involved.
@@ -13,7 +14,7 @@ import { subscriptionRows, winBackList } from "./subscriptions";
 
 export const MONTHS_AT_STAKE = 3;
 
-export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "win_back" | "low_stock";
+export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "win_back" | "fill_gap" | "low_stock";
 
 export interface OwnerAction {
   id: string;
@@ -133,6 +134,22 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
     });
   }
 
+  for (const g of gapsFor(s, tomorrow)) {
+    if (!g.offers.length) continue;
+    const o = g.offers[0];
+    const hours = Math.round((g.freeMinutes / 60) * 10) / 10;
+    actions.push({
+      id: `gap-${g.barber.id}`,
+      kind: "fill_gap",
+      money: "win",
+      title: `${g.barber.name.split(" ")[0]} tem ${hours.toLocaleString("pt-BR")} h livres amanhã`,
+      reason: `${g.offers.length} ${g.offers.length === 1 ? "cliente dele está" : "clientes dele estão"} no ponto de voltar e costumam vir nesse horário. Comece por ${say.first(o.customer.name)}, às ${hhmm(o.start)}.`,
+      valueCents: g.offers.reduce((t, x) => t + x.visitCents, 0),
+      message: { to: o.to, text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) },
+      href: "/painel/barbeiros#encaixe",
+    });
+  }
+
   for (const p of productStats(s, { from: addDays(today, -29), to: today })) {
     if (!p.lowStock || !p.product.active) continue;
     actions.push({
@@ -147,7 +164,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
     });
   }
 
-  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, win_back: 5, low_stock: 6 };
+  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, win_back: 5, fill_gap: 6, low_stock: 7 };
   actions.sort((a, b) => b.valueCents - a.valueCents || order[a.kind] - order[b.kind]);
   return {
     actions,

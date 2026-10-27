@@ -5,6 +5,11 @@ import { Meter } from "@/components/ui";
 import { barberRevenue, periodRange } from "@/domain/metrics";
 import { formatInt, formatMoneyRound, formatPercent } from "@/domain/money";
 import { loadSnapshot } from "@/server/data/store";
+import { AssistantTag, WhatsAppButton } from "@/components/assistant";
+import { Badge } from "@/components/ui";
+import { gapsFor } from "@/domain/assistants/gap-fill";
+import { dayWords, gapOffer, namesFor } from "@/domain/assistants/phrases";
+import { addDays, dayKey, hhmm } from "@/domain/time";
 
 export const metadata: Metadata = { title: "Barbeiros" };
 
@@ -15,6 +20,9 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
   const active = all.filter((b) => b.barber.active);
   const inactive = all.filter((b) => !b.barber.active);
   const total = active.reduce((t, b) => t + b.totalCents, 0);
+  const tomorrow = addDays(dayKey(s.now), 1);
+  const gaps = gapsFor(s, tomorrow);
+  const n = namesFor(s);
 
   const rows = (list: typeof all) =>
     list.map((b) => (
@@ -67,6 +75,46 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
           {rows(active)}
         </DataTable>
       </Panel>
+      <div id="encaixe" className="scroll-mt-6">
+        <Panel
+          title={`Encaixe de ${dayWords(tomorrow, s.now)}`}
+          note="Horários livres de cada barbeiro e os clientes dele que estão no ponto de voltar e costumam vir nesse horário"
+          action={<AssistantTag />}
+        >
+          {gaps.length ? (
+            <ul className="flex flex-col divide-y divide-line-soft">
+              {gaps.map((g) => (
+                <li key={g.barber.id} className="flex flex-col gap-2.5 px-5 py-4">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="font-semibold">{g.barber.name}</span>
+                    <span className="text-sm">{(Math.round((g.freeMinutes / 60) * 10) / 10).toLocaleString("pt-BR")} h livres</span>
+                    <span className="text-[13px] text-muted">{g.windows.map((w) => `${hhmm(w.start)}–${hhmm(w.end)}`).join(" · ")}</span>
+                  </div>
+                  {g.offers.length ? (
+                    <ul className="flex flex-col gap-2">
+                      {g.offers.map((o) => (
+                        <li key={o.customer.id} className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="w-12 font-semibold">{hhmm(o.start)}</span>
+                          <span className="font-semibold">{o.customer.name}</span>
+                          <Badge tone={o.member ? "dark" : "neutral"}>{o.member ? "Assinante" : "Avulso"}</Badge>
+                          <span className="text-[13px] text-muted">
+                            {o.lateByDays > 0 ? `${o.lateByDays} dias além do ritmo` : o.lateByDays === 0 ? "no ponto de voltar" : `volta em ${-o.lateByDays} dias`}
+                          </span>
+                          <WhatsAppButton phone={o.to.phone} text={gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n)} label="Oferecer" className="ml-auto" />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[13px] text-muted">Nenhum cliente dele no ponto de voltar para esses horários.</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 py-6 text-sm text-muted">Agenda de amanhã cheia ou barbearia fechada.</p>
+          )}
+        </Panel>
+      </div>
       {inactive.length ? (
         <Panel title="Desligados com atendimentos no período" note="Ficam fora do ranking e das metas, mas entram no fechamento.">
           <DataTable minWidth={980} head={head}>

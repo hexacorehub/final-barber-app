@@ -1,5 +1,5 @@
 import "server-only";
-import type { BookingUnit, BusyMap } from "@/domain/availability";
+import { busyMapOf, type BookingUnit, type BusyMap } from "@/domain/availability";
 import type { PersonBooking } from "@/domain/booking-rules";
 import { addDays, dayKey, localParts } from "@/domain/time";
 import { household } from "@/domain/household";
@@ -11,16 +11,7 @@ export const BOOKING_DAYS = 8;
 /** Busy intervals of every active barber over the booking window. */
 export function busyMap(s: Snapshot): BusyMap {
   const today = dayKey(s.now);
-  const last = addDays(today, BOOKING_DAYS);
-  const out: BusyMap = {};
-  for (const a of s.appointments) {
-    if (a.status === "canceled") continue;
-    const day = dayKey(a.startsAt);
-    if (day < today || day > last) continue;
-    const start = localParts(a.startsAt).minutes;
-    ((out[a.barberId] ??= {})[day] ??= []).push([start, start + a.durationMin]);
-  }
-  return out;
+  return busyMapOf(s, today, addDays(today, BOOKING_DAYS));
 }
 
 /** Upcoming appointments of the given people, to avoid booking someone twice at once. */
