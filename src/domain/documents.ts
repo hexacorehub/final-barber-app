@@ -26,3 +26,20 @@ export function formatCnpj(value: string): string {
 export function cnpjRoot(value: string): string {
   return digits(value).slice(0, 8);
 }
+
+export function isValidCpf(value: string): boolean {
+  const d = digits(value);
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  const dv = (len: number) => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(d[i]) * (len + 1 - i);
+    const r = (sum * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+}
+
+export function formatCpf(value: string): string {
+  const d = digits(value).padStart(11, "0").slice(-11);
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}

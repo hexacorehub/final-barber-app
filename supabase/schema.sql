@@ -98,6 +98,11 @@ create table if not exists customers (
   check ((holder_id is null) = (relationship is null))
 );
 create index if not exists customers_holder_idx on customers (holder_id);
+-- One CPF per account, one e-mail per account (only when filled in).
+alter table customers add column if not exists cpf text;
+alter table customers add column if not exists email text;
+create unique index if not exists customers_cpf_unique on customers (cpf) where cpf is not null;
+create unique index if not exists customers_email_unique on customers (lower(email)) where email is not null;
 
 create table if not exists subscriptions (
   id text primary key,
@@ -212,6 +217,17 @@ create table if not exists staff_audit (
   change text not null
 );
 
+-- Customer sign-in (CUSTOMER_LOGIN=on): password (scrypt) and sessions.
+create table if not exists customer_credentials (
+  customer_id text primary key references customers(id) on delete cascade,
+  password_hash text not null
+);
+create table if not exists customer_sessions (
+  token_hash text primary key,
+  customer_id text not null references customers(id) on delete cascade,
+  expires_at timestamptz not null
+);
+
 alter table shop_settings enable row level security;
 alter table units enable row level security;
 alter table barbers enable row level security;
@@ -229,6 +245,8 @@ alter table assistant_actions enable row level security;
 alter table staff enable row level security;
 alter table staff_sessions enable row level security;
 alter table staff_audit enable row level security;
+alter table customer_credentials enable row level security;
+alter table customer_sessions enable row level security;
 
 -- Data API access: only the server's secret key (service_role) may touch these tables.
 -- Explicit so it works with "Automatically expose new tables" turned off (recommended).

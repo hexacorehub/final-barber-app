@@ -13,6 +13,9 @@ import { AccountControls } from "./account-controls";
 import { AddMemberForm } from "./add-member-form";
 import { AssistantTag } from "@/components/assistant";
 import { familyNotes } from "@/domain/assistants/family";
+import { maskCpf } from "@/domain/access";
+import { customerLoginEnabled } from "@/server/customer-auth";
+import { signOut } from "../../entrar/actions";
 
 export const metadata: Metadata = { title: "Conta" };
 
@@ -37,8 +40,16 @@ export default async function AccountPage() {
       <div>
         <h1 className="font-display text-[28px] font-semibold md:text-[36px]">Minha conta</h1>
         <p className="text-sm text-muted">
-          {me.customer.name} · {me.customer.phone} · {iAmHolder ? "Titular" : "Conta gerenciada pelo titular"}
+          {me.customer.name} · {me.customer.phone}
+          {me.customer.cpf ? ` · CPF ${maskCpf(me.customer.cpf)}` : ""} · {iAmHolder ? "Titular" : "Conta gerenciada pelo titular"}
         </p>
+        {customerLoginEnabled() ? (
+          <form action={signOut} className="mt-2">
+            <button type="submit" className="text-sm font-semibold underline">
+              Sair da conta
+            </button>
+          </form>
+        ) : null}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 md:gap-8">

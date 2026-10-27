@@ -120,6 +120,10 @@ export interface Customer {
   minor: boolean;
   /** Code this customer shares in the referral program. */
   referralCode: string;
+  /** One CPF per account (unique); optional for people managed by a holder. */
+  cpf?: string | null;
+  /** Sign-in e-mail (unique), for account holders. */
+  email?: string | null;
 }
 
 export type SubscriptionStatus = "active" | "paused" | "past_due" | "canceled";

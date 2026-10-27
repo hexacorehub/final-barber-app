@@ -70,6 +70,15 @@ testes em `tests/assistants.test.ts`.
   elas tomam à mão, pelo movimento dos últimos 30 dias. Sem integração: cada mensagem abre no
   WhatsApp com um toque (`wa.me`); com a API oficial conectada, a mesma fila sai sozinha.
 
+## Acessos por função
+
+O painel segue o acesso mínimo (`src/domain/access.ts`): **dono** (tudo), **gerente da unidade**,
+**recepção** (agenda, agendar, lembretes, pedidos e produtos das unidades dela, sem faturamento,
+CPF ou marketing) e **barbeiro** (só a agenda, os clientes, os candidatos, o faturamento e a
+comissão dele). O dono liga permissões extras por pessoa em `/painel/equipe`; equipe e regras do
+clube nunca saem do dono. O servidor confere a permissão em toda tela e ação. Na demonstração, a
+chave **Ver como** no topo do painel mostra o que cada função enxerga.
+
 ## Regras de negócio
 
 **Contas e planos da família**
@@ -107,13 +116,16 @@ testes em `tests/assistants.test.ts`.
   informar o limite mensal (`plans.monthly_limit`); hoje nenhum informa, e o rodapé diz que a
   equipe confirma.
 
-**Indicação**
+**Indicação** (`src/domain/referral-rules.ts`, parâmetros em `shop_settings.referral_rules`)
 
-- Cada cliente tem um código (ex.: `RAFAEL-7021`) e um link `/convite/<código>`.
-- Quando o indicado assina, quem indicou ganha **50% em uma próxima mensalidade do próprio
-  plano**: um desconto por amigo, aplicado nas cobranças seguintes, um por mês.
-- Indicar alguém da própria conta não conta. O desconto já aparece nas cobranças, no
-  financeiro e no painel.
+- Cada titular tem um código (ex.: `RAFAEL-7021`) e um link `/convite/<código>`; quem é gerenciado
+  por um titular indica pelo código dele, e o desconto vai para o titular.
+- Cada amigo vale **50% de uma mensalidade**, quando a 1ª mensalidade dele é paga.
+- **No máximo um desconto por mês**; até 6 na fila; cada um vale 12 meses.
+- O desconto vai para o plano do próprio titular; se ele só paga planos de outras pessoas da
+  conta, para o mais caro deles. **Nunca para todos os planos da conta.**
+- Indicar alguém da própria conta não conta. O desconto aparece nas cobranças, no financeiro,
+  no painel e, para o cliente, com o estado de cada crédito no `/indique`.
 
 ## Acesso de demonstração
 
@@ -132,6 +144,10 @@ A página `/convite/<código>` continua pública.
 | `FINAL_FINANCE_URL` | opcional | link do botão do Final Finance no financeiro |
 | `SEED_DEMO_HISTORY` | opcional | `false` para a carga automática trazer só catálogo e conta demo |
 | `SNAPSHOT_TTL_MS` | opcional | quanto tempo (ms) o servidor reaproveita a leitura do banco; padrão 30000 |
+| `FINANCE_EXPORT_TOKEN` | opcional | liga o endpoint `/api/finance/export` para o Final Finance ([contrato](./docs/finance-contract.md)) |
+| `STAFF_LOGIN` | opcional | `on` liga o login da equipe por e-mail e senha (o dono continua com `PAINEL_PASSCODE`) |
+| `CUSTOMER_LOGIN` | opcional | `on` liga cadastro e login do cliente por CPF ou e-mail; desligado, o app abre como o cliente de exemplo |
+| `AI_PROVIDER`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `AI_MODEL` | opcional | texto por IA nos assistentes; vazio = só regras, sem custo. O plano grátis do Gemini pode usar o que recebe: só com dados fictícios |
 
 Sem as duas do Supabase, o app roda com dados de demonstração em memória.
 
@@ -170,9 +186,19 @@ cada barbeiro, comissões, produtos, vantagens e termos de cada plano, e as foto
 
 ## Ainda não integrado
 
-Pagamento (conta no CNPJ da barbearia + split), login do cliente (o app abre como o Rafael),
-upload de fotos (Supabase Storage), envio automático no WhatsApp (a fila já está pronta em
-`/painel/whatsapp`) e integração com o Final Finance.
+Pagamento (conta no CNPJ da barbearia + split), upload de fotos (Supabase Storage), envio
+automático no WhatsApp (a fila já está pronta em `/painel/whatsapp`) e os endpoints do lado do
+Final Finance (o Barber já expõe `/api/finance/export`). Login do cliente e da equipe estão
+prontos, desligados por padrão (`CUSTOMER_LOGIN`, `STAFF_LOGIN`).
+
+## Atualizar um banco existente
+
+O `supabase/schema.sql` só acrescenta: rode-o de novo no SQL Editor. Ele cria as colunas
+`subscriptions.cancel_reason`, `subscriptions.billing_unit_id`, `units.cnpj`, `units.legal_name`,
+`customers.cpf`, `customers.email` (com índices únicos), `shop_settings.referral_rules` e as tabelas
+`assistant_actions`, `staff`, `staff_sessions`, `staff_audit`, `customer_credentials` e
+`customer_sessions`. Para os dados de demonstração novos (motivos de cancelamento, unidade de
+cobrança e CNPJ), use "Atualizar datas da demonstração" no painel ou `pnpm db:seed --demo`.
 
 ## Rodar localmente
 

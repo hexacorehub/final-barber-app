@@ -158,6 +158,8 @@ export const customerToRow = (c: Customer): Row => ({
   relationship: c.relationship,
   minor: c.minor,
   referral_code: c.referralCode,
+  ...(c.cpf ? { cpf: c.cpf } : {}),
+  ...(c.email ? { email: c.email } : {}),
 });
 export const customerFromRow = (r: Row): Customer => ({
   id: String(r.id),
@@ -170,6 +172,8 @@ export const customerFromRow = (r: Row): Customer => ({
   relationship: (r.relationship as Customer["relationship"]) ?? null,
   minor: Boolean(r.minor),
   referralCode: String(r.referral_code ?? ""),
+  cpf: (r.cpf as string | null) ?? null,
+  email: (r.email as string | null) ?? null,
 });
 
 export const subscriptionToRow = (s: Subscription): Row => ({
