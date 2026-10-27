@@ -7,6 +7,8 @@ import { formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/mo
 import { painelSnapshot, painelUnit } from "@/server/painel-scope";
 import { legalEntities } from "@/domain/legal-entities";
 import { unitBreakdown } from "@/domain/units";
+import { financeExport } from "@/domain/finance-export";
+import { loadSnapshot } from "@/server/data/store";
 import { AssistantSays } from "@/components/assistant";
 
 export const metadata: Metadata = { title: "Financeiro" };
@@ -28,6 +30,17 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const totalCommission = commissions.reduce((t, b) => t + b.commission, 0);
   const financeUrl = process.env.FINAL_FINANCE_URL || null;
   const unit = await painelUnit();
+  const exported = financeExport(await loadSnapshot(), { from: range.from, to: range.to });
+  const exportRows = exported.companies.flatMap((c) =>
+    c.units
+      .filter((u) => !unit || u.unit.id === unit.id)
+      .map((u) => {
+        const sum = (k: string) => u.days.reduce((t, d) => t + d.lines.filter((l) => l.externalId.endsWith(`:${k}`)).reduce((x, l) => x + l.amountCents, 0), 0);
+        const discount = u.days.reduce((t, d) => t + d.lines.reduce((x, l) => x + (l.discountCents ?? 0), 0), 0);
+        return { company: c, u, services: sum("services"), club: sum("club"), products: sum("products"), discount };
+      }),
+  );
+  const exportOn = Boolean(process.env.FINANCE_EXPORT_TOKEN);
   const perUnit = unit ? [] : unitBreakdown(s, range);
   const companies = unit
     ? []
@@ -181,6 +194,48 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           </div>
         </div>
       </section>
+      <Panel
+        title="Prévia do envio ao Final Finance"
+        note={`O que o Final Finance recebe para ${range.label}: receita por unidade e por dia, e o repasse aos barbeiros do período`}
+        action={<Badge tone={exportOn ? "ok" : "neutral"}>{exportOn ? "Endpoint ligado" : "Endpoint desligado"}</Badge>}
+      >
+        <DataTable
+          minWidth={820}
+          head={
+            <>
+              <th>Unidade e CNPJ</th>
+              <th className="text-right">Dias</th>
+              <th className="text-right">Serviços</th>
+              <th className="text-right">Clube</th>
+              <th className="text-right">Produtos</th>
+              <th className="text-right">Receita</th>
+              <th className="text-right">Repasse</th>
+            </>
+          }
+        >
+          {exportRows.map((r) => (
+            <tr key={r.u.unit.id}>
+              <td>
+                <span className="font-semibold">{r.u.unit.name}</span>
+                <span className="block text-xs text-muted">{r.u.unit.cnpj ?? "sem CNPJ"} · {r.company.legalName}</span>
+              </td>
+              <td className="text-right">{r.u.days.length}</td>
+              <td className="text-right">{formatMoneyRound(r.services)}</td>
+              <td className="text-right">
+                {formatMoneyRound(r.club)}
+                {r.discount ? <span className="block text-xs text-muted">−{formatMoneyRound(r.discount)} indicação</span> : null}
+              </td>
+              <td className="text-right">{formatMoneyRound(r.products)}</td>
+              <td className="text-right font-semibold">{formatMoneyRound(r.u.incomeCents)}</td>
+              <td className="text-right">{formatMoneyRound(r.u.partners.amountCents)}</td>
+            </tr>
+          ))}
+        </DataTable>
+        <p className="border-t border-line-soft px-5 py-3 text-[13px] text-muted">
+          O Final Finance lê esses dados em <code className="rounded bg-chip px-1">/api/finance/export</code> com o token <code className="rounded bg-chip px-1">FINANCE_EXPORT_TOKEN</code>
+          {exportOn ? "." : " (ainda não definido)."} Cada lançamento tem uma chave fixa: reenviar o mesmo dia atualiza, não duplica. Formato completo em docs/finance-contract.md.
+        </p>
+      </Panel>
     </>
   );
 }
