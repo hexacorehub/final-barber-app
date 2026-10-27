@@ -27,8 +27,8 @@ const SATURDAY: OpeningHours = { open: 9 * 60, close: 19 * 60 };
 const HOURS = [null, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, WEEKDAY, SATURDAY];
 
 export const UNITS: Unit[] = [
-  { id: "unit-chacara", name: "Chácara Santo Antônio", address: "Rua José de Carvalho, 191 · São Paulo", phone: "(11) 97727-1896", photoUrl: SHOP_PHOTOS["unit-chacara"], hours: HOURS },
-  { id: "unit-guarapiranga", name: "Guarapiranga", address: "Avenida Guarapiranga, 2431 · São Paulo", phone: null, photoUrl: SHOP_PHOTOS["unit-guarapiranga"], hours: HOURS },
+  { id: "unit-chacara", name: "Chácara Santo Antônio", address: "Rua José de Carvalho, 191 · São Paulo", phone: "(11) 97727-1896", photoUrl: SHOP_PHOTOS["unit-chacara"], hours: HOURS, cnpj: "12.345.678/0001-95", legalName: "Mister Bigode Barbearia Ltda (CNPJ fictício)" },
+  { id: "unit-guarapiranga", name: "Guarapiranga", address: "Avenida Guarapiranga, 2431 · São Paulo", phone: null, photoUrl: SHOP_PHOTOS["unit-guarapiranga"], hours: HOURS, cnpj: "12.345.678/0002-76", legalName: "Mister Bigode Barbearia Ltda (CNPJ fictício)" },
 ];
 
 const barber = (id: string, name: string, unitId: string, active = true): Barber => ({

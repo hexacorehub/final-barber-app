@@ -118,7 +118,9 @@ export interface ReferralCredit {
 const creditCache = new WeakMap<Snapshot, ReferralCredit[]>();
 
 /** Every credit of the program, with what happened to it. */
-export function referralCredits(s: Snapshot): ReferralCredit[] {
+export function referralCredits(scoped: Snapshot): ReferralCredit[] {
+  // A friend from another unit still earns the referrer's credit: credits are shop-wide.
+  const s = scoped.scopedFrom ?? scoped;
   const cached = creditCache.get(s);
   if (cached) return cached;
   const rules = referralRules(s);

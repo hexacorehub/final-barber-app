@@ -15,18 +15,22 @@ import {
 import { ownerDay } from "@/domain/assistants/owner-actions";
 import { TodayPanel } from "./today-panel";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot, painelUnit } from "@/server/painel-scope";
+import { unitBreakdown } from "@/domain/units";
+import { entityOf } from "@/domain/legal-entities";
 
 export const metadata: Metadata = { title: "Painel" };
 
 export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const mix = revenueMix(s, range);
   const barbers = barberRevenue(s, range);
   const club = clubTotals(s, range);
   const plans = planIndicators(s, range);
   const day = ownerDay(s);
+  const unit = await painelUnit();
+  const units = unit ? [] : unitBreakdown(s, range);
   const sellers = plansSoldByBarber(s, range).slice(0, 5);
   const products = productStats(s, range);
   const occupancy = barbers.length ? barbers.reduce((t, b) => t + b.occupancy, 0) / barbers.length : 0;
@@ -46,6 +50,38 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <Stat label="Ticket médio avulso" value={formatMoneyRound(mix.avgWalkInTicketCents)} hint={`${formatInt(mix.walkInVisits)} visitas pagas na hora`} />
         <Stat label="Ocupação da agenda" value={formatPercent(occupancy)} hint={`${mix.noShows} faltas no período`} />
       </div>
+
+      {units.length > 1 ? (
+        <Panel title="Por unidade" note="Mensalidades contam na unidade que cobra o plano. Escolha uma unidade no topo para ver o painel só dela.">
+          <DataTable
+            minWidth={760}
+            head={
+              <>
+                <th>Unidade</th>
+                <th className="text-right">Faturamento</th>
+                <th className="text-right">Atendimentos</th>
+                <th className="text-right">Ocupação</th>
+                <th className="text-right">Planos cobrados</th>
+                <th className="text-right">Recorrente/mês</th>
+              </>
+            }
+          >
+            {units.map((u) => (
+              <tr key={u.unit.id}>
+                <td>
+                  <span className="font-semibold">{u.unit.name}</span>
+                  <span className="block text-xs text-muted">{u.unit.cnpj ? `CNPJ ${u.unit.cnpj}${entityOf(s, u.unit.id)?.branches ? " · filial da mesma empresa" : ""}` : "Sem CNPJ cadastrado"}</span>
+                </td>
+                <td className="text-right font-semibold">{formatMoneyRound(u.revenueCents)}</td>
+                <td className="text-right">{formatInt(u.completed)}</td>
+                <td className="text-right">{formatPercent(u.occupancy)}</td>
+                <td className="text-right">{formatInt(u.members)}</td>
+                <td className="text-right">{formatMoneyRound(u.mrrCents)}</td>
+              </tr>
+            ))}
+          </DataTable>
+        </Panel>
+      ) : null}
 
       <Panel
         title="Faturamento por barbeiro ativo"

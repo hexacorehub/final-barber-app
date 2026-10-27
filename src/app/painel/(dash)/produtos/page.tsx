@@ -6,7 +6,7 @@ import { Badge, Stat } from "@/components/ui";
 import { periodRange, productStats } from "@/domain/metrics";
 import { formatInt, formatMoney, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 import { AssistantSays, AssistantTag } from "@/components/assistant";
 import { stockForecast } from "@/domain/assistants/shelf";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Produtos" };
 const CATEGORY = { hair: "Cabelo", beard: "Barba", skin: "Pele", accessory: "Acessórios" } as const;
 
 export default async function ProductsDashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const stats = productStats(s, range);
   const revenue = stats.reduce((t, p) => t + p.revenueCents, 0);

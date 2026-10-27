@@ -35,6 +35,9 @@ create table if not exists units (
   hours jsonb not null
 );
 
+alter table units add column if not exists cnpj text;
+alter table units add column if not exists legal_name text;
+
 create table if not exists barbers (
   id text primary key,
   name text not null,
@@ -112,6 +115,7 @@ create table if not exists subscriptions (
 );
 -- One plan in force per person: several plans per account, never two for the same person.
 alter table subscriptions add column if not exists cancel_reason text;
+alter table subscriptions add column if not exists billing_unit_id text references units(id);
 create unique index if not exists subscriptions_one_per_person on subscriptions (customer_id) where status <> 'canceled';
 
 create table if not exists appointments (

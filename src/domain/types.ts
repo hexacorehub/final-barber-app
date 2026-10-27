@@ -37,6 +37,9 @@ export interface Unit {
   photoUrl: string | null;
   /** Indexed by weekday; null = closed. */
   hours: (OpeningHours | null)[];
+  /** Company of this unit: same root (first 8 digits) = branches of one company. */
+  cnpj?: string | null;
+  legalName?: string | null;
 }
 
 export interface Barber {
@@ -223,4 +226,6 @@ export interface Snapshot {
   leads: PlanLead[];
   galleryPhotos: GalleryPhoto[];
   now: string;
+  /** Set on a unit-scoped snapshot: the whole shop, for rules that cross units (referral credits). */
+  scopedFrom?: Snapshot;
 }

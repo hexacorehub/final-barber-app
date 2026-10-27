@@ -6,7 +6,7 @@ import { Badge, Stat, cn } from "@/components/ui";
 import { candidateInsights, clubCandidates, type CandidateSegment, type Chance, type ClubCandidate } from "@/domain/assistants/candidates";
 import { candidateReason, counterScript, dayWords, inviteMessage, momentText, namesFor, planShort, timeOf } from "@/domain/assistants/phrases";
 import { formatInt, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Candidatos ao clube" };
 
@@ -20,7 +20,7 @@ const FILTERS: { id: "todos" | Chance; label: string }[] = [
 ];
 
 export default async function CandidatesPage({ searchParams }: { searchParams: Promise<{ chance?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const n = namesFor(s);
   const list = clubCandidates(s);
   const ins = candidateInsights(s, list);

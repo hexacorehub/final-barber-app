@@ -10,7 +10,7 @@ import { weeklyBrief } from "@/domain/assistants/weekly-brief";
 import { SITUATIONS, type Situation } from "@/domain/assistants/outbox";
 import { formatInt, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 import { actionLog } from "@/server/assistants/log";
 import { aiProvider, write } from "@/server/assistants/writer";
 import { AskBox } from "./ask-box";
@@ -26,7 +26,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default async function AssistantPage() {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const brief = weeklyBrief(s);
   const headline = await write({ task: "resumo da semana para o dono", fallback: brief.headline, numbers: brief.numbers });
   const { log, simulated } = await actionLog(s);

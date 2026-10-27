@@ -10,14 +10,14 @@ import { inviteMessage, namesFor } from "@/domain/assistants/phrases";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, monthShort, shortDate } from "@/domain/time";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Mister Club" };
 
 const short = (name: string) => name.replace("Mister Club ", "");
 
 export default async function ClubDashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const totals = clubTotals(s, range);
   const plans = planIndicators(s, range);

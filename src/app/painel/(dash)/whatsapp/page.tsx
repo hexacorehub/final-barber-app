@@ -7,14 +7,14 @@ import { Badge, Stat, cn } from "@/components/ui";
 import { frontDeskTime, outboxToday, outboxVolume30d, SITUATION_ORDER, SITUATIONS, type Situation } from "@/domain/assistants/outbox";
 import { first, timeOf } from "@/domain/assistants/phrases";
 import { formatInt } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
 const hours = (minutes: number) => (minutes < 90 ? `${formatInt(Math.round(minutes))} min` : `${formatInt(Math.round(minutes / 60))} h`);
 
 export default async function WhatsAppPage({ searchParams }: { searchParams: Promise<{ situacao?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const queue = outboxToday(s);
   const volume = outboxVolume30d(s);
   const time = frontDeskTime(s, volume);

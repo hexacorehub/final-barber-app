@@ -4,7 +4,9 @@ import { DataTable, Legend, PageHeader, Panel, SOURCE_SEGMENTS, StackedBar, pars
 import { Badge, Stat, buttonStyles, cn } from "@/components/ui";
 import { barberRevenue, clubTotals, periodRange, referralStats, revenueMix, upcomingClubCharges } from "@/domain/metrics";
 import { formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot, painelUnit } from "@/server/painel-scope";
+import { legalEntities } from "@/domain/legal-entities";
+import { unitBreakdown } from "@/domain/units";
 import { AssistantSays } from "@/components/assistant";
 
 export const metadata: Metadata = { title: "Financeiro" };
@@ -15,7 +17,7 @@ export const metadata: Metadata = { title: "Financeiro" };
  * belong to Final Finance — this page points there instead of rebuilding them.
  */
 export default async function FinancePage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const mix = revenueMix(s, range);
   const barbers = barberRevenue(s, range, { includeInactive: true });
@@ -25,6 +27,11 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const commissions = barbers.map((b) => ({ ...b, commission: b.serviceCommissionCents + b.productCommissionCents }));
   const totalCommission = commissions.reduce((t, b) => t + b.commission, 0);
   const financeUrl = process.env.FINAL_FINANCE_URL || null;
+  const unit = await painelUnit();
+  const perUnit = unit ? [] : unitBreakdown(s, range);
+  const companies = unit
+    ? []
+    : legalEntities(s).map((e) => ({ e, totals: perUnit.filter((u) => e.units.some((x) => x.id === u.unit.id)) }));
 
   const sources = [
     { ...SOURCE_SEGMENTS.walkIn, value: mix.walkInCents },
@@ -49,6 +56,40 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           Nos próximos 30 dias estão previstas {upcoming.count} mensalidades, {formatMoneyRound(upcoming.totalCents)}. Caixa, contas e impostos ficam no Final Finance.
         </p>
       </AssistantSays>
+
+      {companies.length ? (
+        <Panel title="Por empresa (CNPJ)" note={companies.length === 1 && companies[0].e.branches ? "As unidades são filiais da mesma empresa: um espaço de empresa no Final Finance, com a unidade em cada lançamento." : "Cada CNPJ vira um espaço de empresa no Final Finance."}>
+          <DataTable
+            minWidth={640}
+            head={
+              <>
+                <th>Empresa e unidades</th>
+                <th className="text-right">Serviços</th>
+                <th className="text-right">Clube</th>
+                <th className="text-right">Produtos</th>
+                <th className="text-right">Total</th>
+              </>
+            }
+          >
+            {companies.flatMap(({ e, totals }) =>
+              totals.map((u) => (
+                <tr key={u.unit.id}>
+                  <td>
+                    <span className="font-semibold">{u.unit.name}</span>
+                    <span className="block text-xs text-muted">
+                      {e.legalName} · {u.unit.cnpj ?? "sem CNPJ"}
+                    </span>
+                  </td>
+                  <td className="text-right">{formatMoneyRound(u.walkInCents)}</td>
+                  <td className="text-right">{formatMoneyRound(u.clubCents)}</td>
+                  <td className="text-right">{formatMoneyRound(u.productCents)}</td>
+                  <td className="text-right font-semibold">{formatMoneyRound(u.revenueCents)}</td>
+                </tr>
+              )),
+            )}
+          </DataTable>
+        </Panel>
+      ) : null}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Entrou no período" value={formatMoneyCompact(mix.totalCents)} hint="serviços, clube e produtos" />

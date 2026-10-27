@@ -8,7 +8,7 @@ import { cardDeclined, memberLate, namesFor, planShort, winBack, type Names } fr
 import { formatInt, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
 import type { SalesChannel } from "@/domain/types";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Assinaturas" };
 
@@ -30,7 +30,7 @@ const PERIODS = [
 ];
 
 export default async function SubscriptionsPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const q = await searchParams;
   const n = namesFor(s);
   const filter: SubFilter = {

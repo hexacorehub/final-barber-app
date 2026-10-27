@@ -309,6 +309,14 @@ export function buildDemoSnapshot(now: Date): Snapshot {
     x.cancelReason = REASONS[Math.abs(h) % REASONS.length];
   }
 
+  // The unit that charges each plan: the one of the member's barber (no random draw).
+  const unitOfBarber = new Map(BARBERS.map((b) => [b.id, b.unitId]));
+  const byId = new Map(customers.map((c) => [c.id, c]));
+  for (const x of subscriptions) {
+    const payer = byId.get(x.payerCustomerId);
+    x.billingUnitId = unitOfBarber.get(payer?.preferredBarberId ?? "") ?? "unit-chacara";
+  }
+
   // ---------- appointments ----------
   const subsByCustomer = new Map<string, Subscription>();
   for (const s of subscriptions) subsByCustomer.set(s.customerId, s);

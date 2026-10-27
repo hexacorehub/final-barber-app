@@ -11,6 +11,8 @@ import { TEST_DATA_NOTICE } from "@/components/test-data-notice";
 import { showsTestData } from "@/server/test-data";
 import { OwnerNav } from "./owner-nav";
 import { RefreshDemoButton } from "./refresh-demo-button";
+import { UnitSwitcher } from "./unit-switcher";
+import { painelUnit } from "@/server/painel-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const gated = dashboardProtected();
   const testData = showsTestData();
   const canLeave = passcodeConfigured() && !(await hasDemoAccess());
+  const unit = await painelUnit();
 
   return (
     <div className="min-h-dvh bg-white">
@@ -35,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               <span className="border-l border-[#3a3a3a] pl-3 text-[13px] text-[#bdbdbd]">Painel do dono</span>
             </div>
             <div className="flex items-center gap-1 text-[13px]">
+              <UnitSwitcher units={s.units.map((u) => ({ id: u.id, name: u.name }))} current={unit?.id ?? null} />
               <Link href="/inicio" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
                 Ver app do cliente
               </Link>

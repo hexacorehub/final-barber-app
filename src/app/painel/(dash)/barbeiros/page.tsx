@@ -4,7 +4,7 @@ import { DataTable, PageHeader, Panel, parsePeriod } from "@/components/dashboar
 import { Meter } from "@/components/ui";
 import { barberRevenue, periodRange } from "@/domain/metrics";
 import { formatInt, formatMoneyRound, formatPercent } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { painelSnapshot } from "@/server/painel-scope";
 import { AssistantTag, WhatsAppButton } from "@/components/assistant";
 import { Badge } from "@/components/ui";
 import { gapsFor } from "@/domain/assistants/gap-fill";
@@ -14,7 +14,7 @@ import { addDays, dayKey, hhmm } from "@/domain/time";
 export const metadata: Metadata = { title: "Barbeiros" };
 
 export default async function BarbersPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const all = barberRevenue(s, range, { includeInactive: true });
   const active = all.filter((b) => b.barber.active);
