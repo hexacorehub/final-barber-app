@@ -46,7 +46,9 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Receita recorrente" value={formatMoneyCompact(totals.mrrCents)} hint="por mês" />
         <Stat label="Assinantes" value={formatInt(totals.members)} hint={`${totals.dependents} em contas familiares · ${totals.paused} pausados`} />
-        <Stat label="Entradas e saídas" value={`+${totals.newInRange} / −${totals.canceledInRange}`} hint="no período" />
+        <Link href="/painel/assinaturas" className="rounded-2xl hover:ring-2 hover:ring-ink">
+          <Stat label="Entradas e saídas" value={`+${totals.newInRange} / −${totals.canceledInRange}`} hint="no período · ver todas" />
+        </Link>
         <Stat label="Pagamentos recusados" value={formatInt(totals.pastDue)} hint={`${formatMoneyRound(totals.pastDueCents)} a recuperar`} />
         <Stat label="Vendidos pelo app" value={formatInt(fromApp)} hint="assinaturas ativas" />
       </div>
@@ -179,15 +181,26 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
             )}
           </Panel>
         </div>
-        <Panel title="Quem vendeu" className="flex-[1_1_320px]" note="Assinaturas novas no período por barbeiro">
+        <Panel
+          title="Quem vendeu"
+          className="flex-[1_1_320px]"
+          note="Assinaturas novas no período por barbeiro"
+          action={
+            <Link href="/painel/assinaturas?vendedor=none" className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+              Sem barbeiro <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          }
+        >
           {sellers.length ? (
             <ol className="flex flex-col divide-y divide-line-soft">
               {sellers.map((x) => (
-                <li key={x.barber.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-                  <span className="font-semibold">{x.barber.name}</span>
-                  <span>
-                    {x.count} · <span className="text-muted">+{formatMoneyRound(x.mrrCents)}/mês</span>
-                  </span>
+                <li key={x.barber.id}>
+                  <Link href={`/painel/assinaturas?vendedor=${x.barber.id}`} className="flex items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-chip">
+                    <span className="font-semibold">{x.barber.name}</span>
+                    <span>
+                      {x.count} · <span className="text-muted">+{formatMoneyRound(x.mrrCents)}/mês</span>
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ol>
@@ -198,7 +211,20 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       </div>
 
       <div id="indicacoes" className="scroll-mt-6">
-        <Panel title="Programa de indicação" note="Cada amigo que assina pelo convite vale 50% numa próxima mensalidade de quem indicou">
+        <Panel
+          title="Programa de indicação"
+          note="Cada amigo que assina pelo convite vale 50% numa próxima mensalidade de quem indicou"
+          action={
+            <div className="flex gap-1">
+              <Link href="/painel/assinaturas?indicacao=com" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Com indicação <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link href="/painel/assinaturas?indicacao=sem" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Sem indicação <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          }
+        >
           <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px border-b border-line-soft bg-line-soft">
             {[
               ["Novos por indicação", `${referrals.joinedInRange}`, "no período"],
@@ -233,7 +259,20 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       </div>
 
       <div id="risco" className="scroll-mt-6">
-        <Panel title="Assinantes em risco" note="Cartão recusado, ou sem visita bem além do ritmo de costume e sem horário marcado">
+        <Panel
+          title="Assinantes em risco"
+          note="Cartão recusado, ou sem visita bem além do ritmo de costume e sem horário marcado"
+          action={
+            <div className="flex gap-1">
+              <Link href="/painel/assinaturas?status=risk" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Em risco <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link href="/painel/assinaturas?status=canceled" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Canceladas <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          }
+        >
           {risk.length ? (
             <DataTable
               minWidth={720}

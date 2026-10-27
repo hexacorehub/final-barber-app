@@ -171,6 +171,8 @@ export const subscriptionToRow = (s: Subscription): Row => ({
   sold_by_barber_id: s.soldByBarberId,
   channel: s.channel,
   referred_by_customer_id: s.referredByCustomerId,
+  // Optional columns: only sent when set, so older databases keep working.
+  ...(s.cancelReason ? { cancel_reason: s.cancelReason } : {}),
 });
 export const subscriptionFromRow = (r: Row): Subscription => ({
   id: String(r.id),
@@ -184,6 +186,7 @@ export const subscriptionFromRow = (r: Row): Subscription => ({
   soldByBarberId: (r.sold_by_barber_id as string | null) ?? null,
   channel: r.channel as Subscription["channel"],
   referredByCustomerId: (r.referred_by_customer_id as string | null) ?? null,
+  cancelReason: (r.cancel_reason as string | null) ?? null,
 });
 
 export const appointmentToRow = (a: Appointment): Row => ({

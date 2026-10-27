@@ -6,15 +6,16 @@ import { MONTHS_AT_STAKE, type ActionKind, type OwnerDay } from "@/domain/assist
 import { formatMoneyCompact, formatMoneyRound } from "@/domain/money";
 
 const KIND: Record<ActionKind, { label: string; plural: string; tone: "bad" | "warn" | "ok" | "neutral" | "dark"; href: string }> = {
-  card_declined: { label: "Cobrança", plural: "cartões recusados", tone: "bad", href: "/painel/clube#risco" },
-  member_late: { label: "Retenção", plural: "assinantes sumidos", tone: "warn", href: "/painel/clube#risco" },
+  card_declined: { label: "Cobrança", plural: "cartões recusados", tone: "bad", href: "/painel/assinaturas?status=risk" },
+  member_late: { label: "Retenção", plural: "assinantes sumidos", tone: "warn", href: "/painel/assinaturas?status=risk" },
   offer_in_person: { label: "Oferta no balcão", plural: "ofertas no balcão", tone: "ok", href: "/painel/candidatos" },
   club_invite: { label: "Convite", plural: "convites para o clube", tone: "ok", href: "/painel/candidatos?chance=alta" },
   plan_request: { label: "Pedido", plural: "pedidos de plano", tone: "dark", href: "/painel/clube#interessados" },
+  win_back: { label: "Reconquista", plural: "ex-assinantes para reconquistar", tone: "ok", href: "/painel/assinaturas?status=canceled" },
   low_stock: { label: "Estoque", plural: "produtos para repor", tone: "neutral", href: "/painel/produtos" },
 };
 
-const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "member_late", "low_stock"];
+const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "win_back", "member_late", "low_stock"];
 
 /** The Gerente assistant on the overview: what to do today, by money involved. */
 export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) {

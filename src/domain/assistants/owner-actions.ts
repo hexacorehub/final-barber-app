@@ -3,6 +3,7 @@ import { addDays, dayKey, daysBetween } from "../time";
 import { productStats, retentionRisk } from "../metrics";
 import { clubCandidates, type ClubCandidate } from "./candidates";
 import * as say from "./phrases";
+import { subscriptionRows, winBackList } from "./subscriptions";
 
 /**
  * "Hoje na barbearia": what the owner should do today, ordered by the money involved.
@@ -12,7 +13,7 @@ import * as say from "./phrases";
 
 export const MONTHS_AT_STAKE = 3;
 
-export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "low_stock";
+export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "win_back" | "low_stock";
 
 export interface OwnerAction {
   id: string;
@@ -118,6 +119,20 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
     });
   }
 
+  for (const r of winBackList(subscriptionRows(s)).filter((x) => x.winBack?.chance === "alta")) {
+    const days = r.sub.canceledAt ? daysBetween(dayKey(r.sub.canceledAt), today) : 0;
+    actions.push({
+      id: `winback-${r.sub.id}`,
+      kind: "win_back",
+      money: "win",
+      title: `Traga ${r.customer.name} de volta`,
+      reason: `Cancelou o ${say.planShort(r.plan)} há ${days} dias, depois de ${r.months} meses${r.visitsAfterCancel ? `, e voltou ${r.visitsAfterCancel} ${r.visitsAfterCancel === 1 ? "vez" : "vezes"} pagando avulso` : ""}${r.sub.cancelReason ? `. Motivo: ${r.sub.cancelReason.toLowerCase()}` : ""}.`,
+      valueCents: r.plan.priceCents * MONTHS_AT_STAKE,
+      message: { to: r.payer, text: say.winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n) },
+      href: "/painel/assinaturas?status=canceled",
+    });
+  }
+
   for (const p of productStats(s, { from: addDays(today, -29), to: today })) {
     if (!p.lowStock || !p.product.active) continue;
     actions.push({
@@ -132,7 +147,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
     });
   }
 
-  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, low_stock: 5 };
+  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, win_back: 5, low_stock: 6 };
   actions.sort((a, b) => b.valueCents - a.valueCents || order[a.kind] - order[b.kind]);
   return {
     actions,

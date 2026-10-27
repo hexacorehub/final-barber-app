@@ -301,6 +301,14 @@ export function buildDemoSnapshot(now: Date): Snapshot {
   // Walk-in customers.
   for (let i = 0; i < 300; i++) customers.push(newCustomer(n++, r.chance(0.25) ? [9, 15] : [21, 60]));
 
+  // Why former members left (when they said so). Picked by id, so the random sequence above is untouched.
+  const REASONS = ["Mudou de bairro", "Achou caro", "Vinha pouco", "Problema no cartão", null, null];
+  for (const x of subscriptions) {
+    if (x.status !== "canceled") continue;
+    const h = [...x.id].reduce((t, ch) => (t * 31 + ch.charCodeAt(0)) | 0, 7);
+    x.cancelReason = REASONS[Math.abs(h) % REASONS.length];
+  }
+
   // ---------- appointments ----------
   const subsByCustomer = new Map<string, Subscription>();
   for (const s of subscriptions) subsByCustomer.set(s.customerId, s);

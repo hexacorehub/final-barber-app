@@ -109,6 +109,7 @@ create table if not exists subscriptions (
   referred_by_customer_id text references customers(id)
 );
 -- One plan in force per person: several plans per account, never two for the same person.
+alter table subscriptions add column if not exists cancel_reason text;
 create unique index if not exists subscriptions_one_per_person on subscriptions (customer_id) where status <> 'canceled';
 
 create table if not exists appointments (

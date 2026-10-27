@@ -136,6 +136,8 @@ export interface Subscription {
   channel: SalesChannel;
   /** Customer whose referral brought this subscription (earns 50% off one monthly fee). */
   referredByCustomerId: string | null;
+  /** Why it was canceled, when the customer said so. */
+  cancelReason?: string | null;
 }
 
 export type AppointmentStatus = "scheduled" | "completed" | "no_show" | "canceled";

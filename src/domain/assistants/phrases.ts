@@ -195,3 +195,12 @@ export function clubWelcome(to: Customer, plan: Plan, n: Names): string {
   const covers = plan.covers.map((c) => (c === "haircut" ? "corte" : "barba")).join(" e ");
   return `Bem-vindo ao Mister Club ${planShort(plan)}, ${first(to.name)}! A partir de agora ${covers} ${plan.covers.length > 1 ? "estão incluídos" : "está incluído"}. Agende pelo app quando quiser. Qualquer dúvida, é só chamar aqui. Equipe ${n.shop}`;
 }
+
+export function winBack(to: Customer, plan: Plan, months: number, visitsAfterCancel: number, n: Names): string {
+  const time = months >= 2 ? ` Foram ${months} meses com o ${planShort(plan)}.` : "";
+  const still = visitsAfterCancel ? " Vi que você continua vindo: no plano, essas visitas já estariam incluídas." : "";
+  return pick(`${to.id}-winback`, [
+    `Oi, ${first(to.name)}! Aqui é da ${n.shop}. Sentimos sua falta no Mister Club.${time}${still} Quer que eu reative para você?`,
+    `${first(to.name)}, tudo bem? O Mister Club ${planShort(plan)} continua disponível para você.${still} Se quiser voltar, eu reativo por aqui mesmo.`,
+  ]);
+}

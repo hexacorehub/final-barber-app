@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { DataTable, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
 import { Meter } from "@/components/ui";
@@ -35,7 +36,11 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
             <span className="w-9 text-right text-xs">{formatPercent(b.occupancy)}</span>
           </div>
         </td>
-        <td className="text-right">{b.plansSold}</td>
+        <td className="text-right">
+          <Link href={`/painel/assinaturas?vendedor=${b.barber.id}`} className="font-semibold underline-offset-2 hover:underline">
+            {b.plansSold}
+          </Link>
+        </td>
       </tr>
     ));
 
