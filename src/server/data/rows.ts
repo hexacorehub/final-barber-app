@@ -28,6 +28,7 @@ export const shopToRow = (s: Shop): Row => ({
   rating_label: s.ratingLabel,
   cover_photo_url: s.coverPhotoUrl,
   portfolio: s.portfolio,
+  ...(s.referralRules ? { referral_rules: s.referralRules } : {}),
 });
 export const shopFromRow = (r: Row): Shop => ({
   name: String(r.name),
@@ -37,6 +38,7 @@ export const shopFromRow = (r: Row): Shop => ({
   ratingLabel: String(r.rating_label),
   coverPhotoUrl: (r.cover_photo_url as string | null) ?? null,
   portfolio: (r.portfolio as Shop["portfolio"]) ?? [],
+  referralRules: (r.referral_rules as Shop["referralRules"]) ?? null,
 });
 
 export const unitToRow = (u: Unit): Row => ({ id: u.id, name: u.name, address: u.address, phone: u.phone, photo_url: u.photoUrl, hours: u.hours });

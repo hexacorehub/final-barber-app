@@ -23,6 +23,8 @@ create table if not exists shop_settings (
   portfolio jsonb not null default '[]'
 );
 
+alter table shop_settings add column if not exists referral_rules jsonb;
+
 create table if not exists units (
   id text primary key,
   name text not null,

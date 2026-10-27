@@ -25,6 +25,8 @@ export interface Shop {
   coverPhotoUrl: string | null;
   /** Work shown in "Resultados" on the app. */
   portfolio: PortfolioPhoto[];
+  /** Referral program parameters the owner changed (domain/referral-rules.ts has the defaults). */
+  referralRules?: { discountPct?: number; perCharge?: number; maxQueued?: number; expiryMonths?: number } | null;
 }
 
 export interface Unit {

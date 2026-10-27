@@ -4,7 +4,7 @@ import { ArrowRight, MessageCircle } from "lucide-react";
 import { DataTable, Empty, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
 import { Badge, Meter, Stat } from "@/components/ui";
 import { messages, whatsappMessage } from "@/components/whatsapp";
-import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralStats, retentionRisk } from "@/domain/metrics";
+import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralCredits, referralStats, retentionRisk } from "@/domain/metrics";
 import { clubCandidates } from "@/domain/assistants/candidates";
 import { inviteMessage, namesFor } from "@/domain/assistants/phrases";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
@@ -34,6 +34,9 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const fromApp = s.subscriptions.filter((x) => x.channel === "app" && x.status !== "canceled").length;
   const referrals = referralStats(s, range);
+  const credits = referralCredits(s);
+  const queued = credits.filter((c) => c.status === "queued").length;
+  const lost = credits.filter((c) => c.status === "expired" || c.status === "over_limit").length;
   const currentPlanOf = (customerId: string) => {
     const sub = s.subscriptions.find((x) => x.customerId === customerId && x.status !== "canceled");
     return sub ? plansById.get(sub.planId) : undefined;
@@ -213,7 +216,7 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       <div id="indicacoes" className="scroll-mt-6">
         <Panel
           title="Programa de indicação"
-          note="Cada amigo que assina pelo convite vale 50% numa próxima mensalidade de quem indicou"
+          note="Cada amigo vale 50% em uma mensalidade do titular que indicou, um desconto por mês, depois da 1ª mensalidade paga do amigo"
           action={
             <div className="flex gap-1">
               <Link href="/painel/assinaturas?indicacao=com" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
@@ -231,6 +234,7 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
               ["Indicados ativos", `${referrals.activeReferred}`, `${formatMoneyRound(referrals.mrrFromReferralsCents)}/mês`],
               ["Descontos concedidos", formatMoneyRound(referrals.discountsInRangeCents), "no período"],
               ["Convites aguardando", `${referrals.pendingLeads}`, "pedidos pelo app"],
+              ["Descontos na fila", `${queued}`, `${lost} vencidos ou além do limite`],
             ].map(([label, value, hint]) => (
               <div key={label} className="flex flex-col gap-1 bg-white px-5 py-4">
                 <span className="text-[13px] text-muted">{label}</span>
