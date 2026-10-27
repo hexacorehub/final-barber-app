@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Card, Eyebrow } from "@/components/ui";
 import { firstName } from "@/components/format";
-import { referralSummary } from "@/domain/metrics";
+import { customerSummary, referralSummary } from "@/domain/metrics";
 import { CREDIT_LABEL, referralRulesText } from "@/domain/referral-rules";
 import { formatMoney } from "@/domain/money";
 import { shortDate } from "@/domain/time";
@@ -27,7 +27,11 @@ export default async function ReferralPage() {
     ["O amigo assina o clube", "Ele escolhe o plano pelo app com o seu convite."],
     [`Você ganha ${pct}%`, "Quando a primeira mensalidade dele for paga, uma mensalidade sua sai pela metade."],
   ] as const;
-  const message = `Bora pro Mister Club da ${s.shop.name}? Assinando pelo meu convite eu ganho um desconto e você fica com o corte sempre em dia:`;
+  const mine = customerSummary(s, await currentCustomerId());
+  const saved = mine && mine.plan && mine.savedLast12MonthsCents > 0 ? mine.savedLast12MonthsCents : 0;
+  const message = saved
+    ? `Eu assino o Mister Club da ${s.shop.name} e economizei ${formatMoney(saved).replace(/,00$/, "")} no último ano comparado a pagar cada corte. Assinando pelo meu convite eu ganho um desconto e você fica com o corte sempre em dia:`
+    : `Bora pro Mister Club da ${s.shop.name}? Assinando pelo meu convite eu ganho um desconto e você fica com o corte sempre em dia:`;
 
   return (
     <div className="flex flex-col gap-6 px-5 pt-5 md:px-0 md:pt-8">
@@ -50,6 +54,7 @@ export default async function ReferralPage() {
               <span className="font-display text-2xl tracking-[0.08em]">{r.code}</span>
             </div>
             <ShareButtons link={link} message={message} />
+            {saved ? <p className="text-[13px] text-[#bdbdbd]">O convite já conta quanto você economizou no clube: {formatMoney(saved)} em 12 meses.</p> : null}
           </Card>
 
           <ol className="grid gap-3 sm:grid-cols-3">

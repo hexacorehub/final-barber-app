@@ -5,6 +5,7 @@ import { Badge, Stat, buttonStyles, cn } from "@/components/ui";
 import { barberRevenue, clubTotals, periodRange, referralStats, revenueMix, upcomingClubCharges } from "@/domain/metrics";
 import { formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { loadSnapshot } from "@/server/data/store";
+import { AssistantSays } from "@/components/assistant";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
@@ -34,6 +35,20 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Financeiro" range={range} path="/painel/financeiro" />
+
+      <AssistantSays>
+        <p>
+          {range.label[0].toUpperCase() + range.label.slice(1)}, entraram <strong>{formatMoneyRound(mix.totalCents)}</strong>:{" "}
+          {formatPercent(mix.totalCents ? mix.walkInCents / mix.totalCents : 0)} de serviços avulsos, {formatPercent(mix.totalCents ? mix.clubCents / mix.totalCents : 0)} do clube e{" "}
+          {formatPercent(mix.totalCents ? mix.productCents / mix.totalCents : 0)} de produtos. As comissões somam {formatMoneyRound(totalCommission)}.
+        </p>
+        <p className="text-muted">
+          {referrals.discountsInRangeCents
+            ? `Os descontos de indicação custaram ${formatMoneyRound(referrals.discountsInRangeCents)} e trouxeram ${referrals.joinedInRange} ${referrals.joinedInRange === 1 ? "assinatura" : "assinaturas"} no período. `
+            : ""}
+          Nos próximos 30 dias estão previstas {upcoming.count} mensalidades, {formatMoneyRound(upcoming.totalCents)}. Caixa, contas e impostos ficam no Final Finance.
+        </p>
+      </AssistantSays>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Entrou no período" value={formatMoneyCompact(mix.totalCents)} hint="serviços, clube e produtos" />

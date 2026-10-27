@@ -7,6 +7,8 @@ import { periodRange, productStats } from "@/domain/metrics";
 import { formatInt, formatMoney, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, shortDate } from "@/domain/time";
 import { loadSnapshot } from "@/server/data/store";
+import { AssistantSays, AssistantTag } from "@/components/assistant";
+import { stockForecast } from "@/domain/assistants/shelf";
 
 export const metadata: Metadata = { title: "Produtos" };
 
@@ -23,6 +25,9 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
   const reservations = s.reservations.filter((r) => r.status === "reserved").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const customers = new Map(s.customers.map((c) => [c.id, c]));
   const products = new Map(s.products.map((p) => [p.id, p]));
+  const forecast = stockForecast(s);
+  const forecastOf = new Map(forecast.map((f) => [f.product.id, f]));
+  const soon = forecast.filter((f) => f.daysLeft !== null && f.daysLeft <= 21);
 
   return (
     <>
@@ -42,9 +47,22 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
         <Stat label="Estoque baixo" value={formatInt(low.length)} hint={low.length ? "repor antes de acabar" : "tudo em dia"} />
       </div>
 
-      <Panel title="Vitrine e estoque" note="Ordenado pelo que mais vendeu no período">
+      {soon.length ? (
+        <AssistantSays>
+          <p>
+            No ritmo dos últimos 30 dias, {soon.length === 1 ? "um produto acaba" : `${soon.length} produtos acabam`} em até 3 semanas:{" "}
+            {soon
+              .slice(0, 4)
+              .map((f) => `${f.product.name} (${f.daysLeft === 0 ? "já acabou" : `${f.daysLeft} dias`})`)
+              .join(", ")}
+            . Repor agora evita perder venda no balcão.
+          </p>
+        </AssistantSays>
+      ) : null}
+
+      <Panel title="Vitrine e estoque" note="Ordenado pelo que mais vendeu no período" action={<AssistantTag />}>
         <DataTable
-          minWidth={860}
+          minWidth={1080}
           head={
             <>
               <th>Produto</th>
@@ -55,6 +73,8 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
               <th className="text-right">Receita</th>
               <th className="text-right">Margem</th>
               <th className="text-right">Reservas</th>
+              <th className="text-right">Acaba em</th>
+              <th>Quem mais compra</th>
             </>
           }
         >
@@ -75,6 +95,19 @@ export default async function ProductsDashboardPage({ searchParams }: { searchPa
               <td className="text-right font-semibold">{formatMoneyRound(p.revenueCents)}</td>
               <td className="text-right">{formatMoneyRound(p.marginCents)}</td>
               <td className="text-right">{p.reserved || "—"}</td>
+              <td className="text-right whitespace-nowrap">
+                {(() => {
+                  const f = forecastOf.get(p.product.id);
+                  if (!f || f.daysLeft === null) return <span className="text-muted">—</span>;
+                  return f.daysLeft <= 21 ? <Badge tone={f.daysLeft <= 7 ? "bad" : "warn"}>{f.daysLeft} dias</Badge> : `${f.daysLeft} dias`;
+                })()}
+              </td>
+              <td className="text-[13px] text-muted">
+                {(forecastOf.get(p.product.id)?.buyers ?? [])
+                  .slice(0, 2)
+                  .map((b) => b.customer.name.split(" ")[0])
+                  .join(", ") || "—"}
+              </td>
             </tr>
           ))}
         </DataTable>

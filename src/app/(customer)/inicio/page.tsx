@@ -13,6 +13,7 @@ import { nextUsualBooking } from "@/domain/assistants/habits";
 import { dayWords, timeOf } from "@/domain/assistants/phrases";
 import { fromLocal } from "@/domain/time";
 import { AssistantTag } from "@/components/assistant";
+import { refillsFor } from "@/domain/assistants/shelf";
 
 export const metadata: Metadata = { title: "Início" };
 
@@ -24,6 +25,7 @@ export default async function HomePage() {
   const today = dayKey(s.now);
   const next = me.upcoming[0];
   const usual = nextUsualBooking(s, me.customer.id);
+  const refill = refillsFor(s, me.customer.id)[0] ?? null;
   const others = usual ? usual.customerIds.slice(1).map((id) => firstName(s.customers.find((c) => c.id === id)?.name ?? "")) : [];
   const alsoComes = usual ? usual.habit.companions.filter((id) => !usual.customerIds.includes(id)).map((id) => firstName(s.customers.find((c) => c.id === id)?.name ?? "")) : [];
   const cycle = me.customer.cycleDays;
@@ -129,6 +131,15 @@ export default async function HomePage() {
         </div>
 
         <div className="flex flex-col gap-4">
+          {refill ? (
+            <Link href={`/produtos#${refill.product.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line p-4 hover:border-ink">
+              <span className="flex flex-col gap-1">
+                <span className="text-[15px] font-semibold">{refill.product.name} deve estar acabando</span>
+                <span className="text-[13px] text-muted">Você comprou há {refill.daysAgo} dias; costuma durar uns {refill.lifeDays}. Reserve e retire no próximo corte.</span>
+              </span>
+              <ChevronRight size={20} aria-hidden="true" />
+            </Link>
+          ) : null}
           {me.plan && me.savedLast12MonthsCents > 0 ? (
             <Link href="/conta" className="flex items-center justify-between gap-3 rounded-2xl border-[1.5px] border-dashed border-ink p-4">
               <span className="flex flex-col gap-1">
