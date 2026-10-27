@@ -201,7 +201,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
                 </td>
                 <td className="text-[13px]">{momentText(c, n, s.now)}</td>
                 <td className="text-right">
-                  <WhatsAppButton phone={c.decider.phone} text={inviteMessage(c, n)} label="Convidar" />
+                  <WhatsAppButton phone={c.decider.phone} text={inviteMessage(c, n)} label="Convidar" track={{ kind: "club_invite", customerId: c.customer.id }} />
                 </td>
               </tr>
             ))}

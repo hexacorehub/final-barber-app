@@ -6,6 +6,7 @@ import { cn } from "@/components/ui";
 
 const ITEMS = [
   { href: "/painel", label: "Visão geral" },
+  { href: "/painel/assistente", label: "Assistente" },
   { href: "/painel/barbeiros", label: "Barbeiros" },
   { href: "/painel/clube", label: "Mister Club" },
   { href: "/painel/assinaturas", label: "Assinaturas" },

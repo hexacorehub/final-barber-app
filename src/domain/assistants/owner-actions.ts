@@ -25,7 +25,7 @@ export interface OwnerAction {
   reason: string;
   valueCents: number;
   /** WhatsApp message, when the action is a message. */
-  message: { to: Customer; text: string } | null;
+  message: { to: Customer; aboutId: string; text: string } | null;
   /** Screen with the details. */
   href: string;
 }
@@ -55,7 +55,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `Cartão recusado: ${r.customer.name}`,
         reason: `${say.planShort(r.plan)} de ${say.first(r.customer.name)} não foi cobrado. Mandar o Pix hoje evita o cancelamento.`,
         valueCents: value,
-        message: { to, text: say.cardDeclined(to, r.plan) },
+        message: { to, aboutId: r.customer.id, text: say.cardDeclined(to, r.plan) },
         href: "/painel/clube#risco",
       });
     } else {
@@ -66,7 +66,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `${r.customer.name} sumiu`,
         reason: `Assina o ${say.planShort(r.plan)}, não vem há ${r.daysSinceVisit} dias (costuma vir a cada ${r.customer.cycleDays}) e não tem horário. Quem não usa o plano costuma cancelar.`,
         valueCents: value,
-        message: { to, text: say.memberLate(to, r.plan, r.daysSinceVisit ?? 0, null, n) },
+        message: { to, aboutId: r.customer.id, text: say.memberLate(to, r.plan, r.daysSinceVisit ?? 0, null, n) },
         href: "/painel/clube#risco",
       });
     }
@@ -94,7 +94,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `Convide ${c.customer.name} para o ${say.planShort(c.plan)}`,
         reason: say.candidateReason(c, n),
         valueCents: value,
-        message: { to: c.decider, text: say.inviteMessage(c, n) },
+        message: { to: c.decider, aboutId: c.customer.id, text: say.inviteMessage(c, n) },
         href: "/painel/candidatos",
       });
     }
@@ -115,7 +115,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
       title: `Pedido de plano esperando: ${about.name}`,
       reason: `Pediu o ${say.planShort(plan)} pelo app ${days === 0 ? "hoje" : `há ${days} ${days === 1 ? "dia" : "dias"}`}. Falta confirmar e ativar a cobrança.`,
       valueCents: plan.priceCents * MONTHS_AT_STAKE,
-      message: { to, text: say.planRequest(to, about, plan) },
+      message: { to, aboutId: about.id, text: say.planRequest(to, about, plan) },
       href: "/painel/clube#interessados",
     });
   }
@@ -129,7 +129,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
       title: `Traga ${r.customer.name} de volta`,
       reason: `Cancelou o ${say.planShort(r.plan)} há ${days} dias, depois de ${r.months} meses${r.visitsAfterCancel ? `, e voltou ${r.visitsAfterCancel} ${r.visitsAfterCancel === 1 ? "vez" : "vezes"} pagando avulso` : ""}${r.sub.cancelReason ? `. Motivo: ${r.sub.cancelReason.toLowerCase()}` : ""}.`,
       valueCents: r.plan.priceCents * MONTHS_AT_STAKE,
-      message: { to: r.payer, text: say.winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n) },
+      message: { to: r.payer, aboutId: r.customer.id, text: say.winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n) },
       href: "/painel/assinaturas?status=canceled",
     });
   }
@@ -145,7 +145,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
       title: `${g.barber.name.split(" ")[0]} tem ${hours.toLocaleString("pt-BR")} h livres amanhã`,
       reason: `${g.offers.length} ${g.offers.length === 1 ? "cliente dele está" : "clientes dele estão"} no ponto de voltar e costumam vir nesse horário. Comece por ${say.first(o.customer.name)}, às ${hhmm(o.start)}.`,
       valueCents: g.offers.reduce((t, x) => t + x.visitCents, 0),
-      message: { to: o.to, text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) },
+      message: { to: o.to, aboutId: o.customer.id, text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) },
       href: "/painel/barbeiros#encaixe",
     });
   }

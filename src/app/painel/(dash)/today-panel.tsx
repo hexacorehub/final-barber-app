@@ -63,7 +63,7 @@ export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) 
             <div className="flex items-center gap-3 md:justify-end">
               {a.valueCents ? <span className="text-sm font-semibold md:w-28 md:text-right">{formatMoneyRound(a.valueCents)}</span> : null}
               {a.message ? (
-                <WhatsAppButton phone={a.message.to.phone} text={a.message.text} label="Mensagem" />
+                <WhatsAppButton phone={a.message.to.phone} text={a.message.text} label="Mensagem" track={{ kind: a.kind, customerId: a.message.aboutId }} />
               ) : (
                 <Link href={a.href} className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-[13px] font-semibold hover:bg-chip">
                   Ver <ArrowRight size={14} aria-hidden="true" />

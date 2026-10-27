@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { MessageCircle, Sparkles } from "lucide-react";
 import { cn } from "./ui";
 import { whatsappMessage } from "./whatsapp";
+import { TrackedLink } from "./tracked-link";
 
 /**
  * Marks what an assistant produced. "rules" = decided and written by rules over the shop's own
@@ -35,15 +36,36 @@ export function AssistantSays({ children, className }: { children: ReactNode; cl
   );
 }
 
-export function WhatsAppButton({ phone, text, label = "Abrir no WhatsApp", className }: { phone: string; text: string; label?: string; className?: string }) {
-  return (
-    <a
-      href={whatsappMessage(phone, text)}
-      target="_blank"
-      rel="noreferrer"
-      className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-lg border-[1.5px] border-ink px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-chip", className)}
-    >
+/** Opens the message in WhatsApp. With `track`, the assistant's scoreboard counts it. */
+export function WhatsAppButton({
+  phone,
+  text,
+  label = "Abrir no WhatsApp",
+  className,
+  track,
+}: {
+  phone: string;
+  text: string;
+  label?: string;
+  className?: string;
+  track?: { kind: string; customerId: string };
+}) {
+  const style = cn("inline-flex min-h-10 items-center gap-1.5 rounded-lg border-[1.5px] border-ink px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-chip", className);
+  const body = (
+    <>
       <MessageCircle size={15} aria-hidden="true" /> {label}
+    </>
+  );
+  if (track) {
+    return (
+      <TrackedLink href={whatsappMessage(phone, text)} className={style} kind={track.kind} customerId={track.customerId}>
+        {body}
+      </TrackedLink>
+    );
+  }
+  return (
+    <a href={whatsappMessage(phone, text)} target="_blank" rel="noreferrer" className={style}>
+      {body}
     </a>
   );
 }

@@ -140,6 +140,8 @@ export interface Subscription {
   referredByCustomerId: string | null;
   /** Why it was canceled, when the customer said so. */
   cancelReason?: string | null;
+  /** Unit that charges the monthly fee (and whose company books it). null = the shop as a whole. */
+  billingUnitId?: string | null;
 }
 
 export type AppointmentStatus = "scheduled" | "completed" | "no_show" | "canceled";

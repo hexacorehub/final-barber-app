@@ -124,18 +124,30 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
 
       <div className="flex flex-wrap items-start gap-6">
         <Panel title="Por quem vendeu" className="flex-[1_1_380px]" note="Toque para filtrar. Conta tudo da seleção, menos o filtro de vendedor.">
-          <ul className="flex flex-col divide-y divide-line-soft">
-            {sellers.map((x) => (
-              <li key={x.id}>
-                <Link href={href({ vendedor: x.id })} className={cn("flex items-center gap-3 px-5 py-3 text-sm hover:bg-chip", filter.seller === x.id && "bg-chip")}>
-                  <span className="flex-1 font-semibold">{x.name}</span>
-                  <span className="w-20 text-right">{x.current} em vigor</span>
-                  <span className="w-24 text-right text-muted">{x.canceled} canceladas</span>
-                  <span className="w-24 text-right font-semibold">{formatMoneyRound(x.mrrCents)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs tracking-[0.06em] text-muted uppercase [&>th]:px-3 [&>th]:py-2.5 [&>th:first-child]:pl-5 [&>th:last-child]:pr-5">
+                <th>Vendedor</th>
+                <th className="text-right">Em vigor</th>
+                <th className="text-right">Cancel.</th>
+                <th className="text-right">Por mês</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sellers.map((x) => (
+                <tr key={x.id} className={cn("border-t border-line-soft hover:bg-chip [&>td]:px-3 [&>td]:py-2.5 [&>td:first-child]:pl-5 [&>td:last-child]:pr-5", filter.seller === x.id && "bg-chip")}>
+                  <td>
+                    <Link href={href({ vendedor: x.id })} className="font-semibold underline-offset-2 hover:underline">
+                      {x.name}
+                    </Link>
+                  </td>
+                  <td className="text-right whitespace-nowrap">{x.current}</td>
+                  <td className="text-right whitespace-nowrap text-muted">{x.canceled}</td>
+                  <td className="text-right font-semibold whitespace-nowrap">{formatMoneyRound(x.mrrCents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Panel>
 
         <Panel title="Reconquista" className="flex-[999_1_480px]" note="Ex-assinantes dos últimos 6 meses com chance de voltar, nesta seleção">
@@ -154,7 +166,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                       {r.sub.cancelReason ? ` · motivo: ${r.sub.cancelReason.toLowerCase()}` : ""}
                     </span>
                   </div>
-                  <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar de volta" />
+                  <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar de volta" track={{ kind: "win_back", customerId: r.customer.id }} />
                 </li>
               ))}
             </ul>
@@ -226,9 +238,9 @@ function StatusBadge({ r }: { r: SubRow }) {
 }
 
 function RowAction({ r, n }: { r: SubRow; n: Names }) {
-  if (r.status === "risk" && r.riskReason === "past_due") return <WhatsAppButton phone={r.payer.phone} text={cardDeclined(r.payer, r.plan)} label="Enviar Pix" />;
-  if (r.status === "risk") return <WhatsAppButton phone={r.payer.phone} text={memberLate(r.payer, r.plan, r.daysSinceVisit ?? 0, r.seller?.id ?? null, n)} label="Lembrar" />;
-  if (r.status === "canceled" && r.winBack) return <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar" />;
+  if (r.status === "risk" && r.riskReason === "past_due") return <WhatsAppButton phone={r.payer.phone} text={cardDeclined(r.payer, r.plan)} label="Enviar Pix" track={{ kind: "card_declined", customerId: r.customer.id }} />;
+  if (r.status === "risk") return <WhatsAppButton phone={r.payer.phone} text={memberLate(r.payer, r.plan, r.daysSinceVisit ?? 0, r.seller?.id ?? null, n)} label="Lembrar" track={{ kind: "member_late", customerId: r.customer.id }} />;
+  if (r.status === "canceled" && r.winBack) return <WhatsAppButton phone={r.payer.phone} text={winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n)} label="Chamar" track={{ kind: "win_back", customerId: r.customer.id }} />;
   return null;
 }
 

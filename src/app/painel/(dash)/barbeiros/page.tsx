@@ -100,7 +100,7 @@ export default async function BarbersPage({ searchParams }: { searchParams: Prom
                           <span className="text-[13px] text-muted">
                             {o.lateByDays > 0 ? `${o.lateByDays} dias além do ritmo` : o.lateByDays === 0 ? "no ponto de voltar" : `volta em ${-o.lateByDays} dias`}
                           </span>
-                          <WhatsAppButton phone={o.to.phone} text={gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n)} label="Oferecer" className="ml-auto" />
+                          <WhatsAppButton phone={o.to.phone} text={gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n)} label="Oferecer" className="ml-auto" track={{ kind: "gap_offer", customerId: o.customer.id }} />
                         </li>
                       ))}
                     </ul>

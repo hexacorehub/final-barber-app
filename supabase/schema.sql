@@ -173,6 +173,15 @@ create table if not exists gallery_photos (
   created_at timestamptz not null default now()
 );
 
+-- Messages the owner opened from an assistant suggestion (for the assistant's scoreboard).
+create table if not exists assistant_actions (
+  id text primary key,
+  kind text not null,
+  customer_id text not null references customers(id),
+  created_at timestamptz not null default now()
+);
+create index if not exists assistant_actions_created_idx on assistant_actions (created_at);
+
 alter table shop_settings enable row level security;
 alter table units enable row level security;
 alter table barbers enable row level security;
@@ -186,6 +195,7 @@ alter table product_sales enable row level security;
 alter table product_reservations enable row level security;
 alter table plan_leads enable row level security;
 alter table gallery_photos enable row level security;
+alter table assistant_actions enable row level security;
 
 -- Data API access: only the server's secret key (service_role) may touch these tables.
 -- Explicit so it works with "Automatically expose new tables" turned off (recommended).

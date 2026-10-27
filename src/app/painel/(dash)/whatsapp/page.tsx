@@ -127,7 +127,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                     </div>
                     <MessageBubble text={i.text} />
                   </div>
-                  <WhatsAppButton phone={i.to.phone} text={i.text} label="Enviar" className="self-start" />
+                  <WhatsAppButton phone={i.to.phone} text={i.text} label="Enviar" className="self-start" track={{ kind: i.situation, customerId: i.about.id }} />
                 </li>
               );
             })}
