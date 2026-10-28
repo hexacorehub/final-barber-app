@@ -19,7 +19,7 @@ const KIND: Record<ActionKind, { label: string; plural: string; tone: "bad" | "w
 const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "win_back", "fill_gap", "member_late", "low_stock"];
 
 /** The Gerente assistant on the overview: what to do today, by money involved. */
-export function TodayPanel({ day, show = 5, showMoney = true }: { day: OwnerDay; show?: number; showMoney?: boolean }) {
+export function TodayPanel({ day, show = 5, showMoney = true, showMessages = true }: { day: OwnerDay; show?: number; showMoney?: boolean; showMessages?: boolean }) {
   const counts = new Map<ActionKind, number>();
   for (const a of day.actions) counts.set(a.kind, (counts.get(a.kind) ?? 0) + 1);
   // Always show variety: the top action of each kind first, then by value.
@@ -80,9 +80,11 @@ export function TodayPanel({ day, show = 5, showMoney = true }: { day: OwnerDay;
             <span className="font-semibold">{counts.get(k)}</span> {KIND[k].plural}
           </Link>
         ))}
-        <Link href="/painel/whatsapp" className="ml-auto inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold">
-          Mensagens do dia <ArrowRight size={14} aria-hidden="true" />
-        </Link>
+        {showMessages ? (
+          <Link href="/painel/whatsapp" className="ml-auto inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold">
+            Mensagens do dia <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        ) : null}
       </div>
     </section>
   );

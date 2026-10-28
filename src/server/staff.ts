@@ -25,7 +25,8 @@ export function staffLoginEnabled(): boolean {
   return process.env.STAFF_LOGIN === "on";
 }
 
-const DEMO_STAFF: StaffMember[] = [
+/** Sample people for the demo's "Ver como". Always available with the demo access, also on Supabase. */
+export const DEMO_STAFF: StaffMember[] = [
   { id: "staff-juliana", name: "Juliana (recepção)", email: "juliana@exemplo.com", role: "reception", unitIds: ["unit-chacara"], barberId: null, overrides: {}, active: true },
   { id: "staff-markos", name: "Markos (barbeiro)", email: "markos@exemplo.com", role: "barber", unitIds: ["unit-chacara"], barberId: "barber-markos", overrides: {}, active: true },
   { id: "staff-gerente", name: "Paula (gerente)", email: "paula@exemplo.com", role: "manager", unitIds: ["unit-guarapiranga"], barberId: null, overrides: {}, active: true },
@@ -153,7 +154,7 @@ export const currentStaff = cache(async (): Promise<StaffMember | null> => {
   // Demo only: "Ver como" shows the dashboard as a sample team member.
   const viewAs = jar.get(VIEW_AS_COOKIE)?.value;
   if (viewAs && (isDemo() || (demoAccessConfigured() && (await hasDemoAccess())))) {
-    const m = (await listStaff()).find((x) => x.id === viewAs);
+    const m = (await listStaff()).find((x) => x.id === viewAs) ?? DEMO_STAFF.find((x) => x.id === viewAs);
     if (m) return m;
   }
   return OWNER;
@@ -161,4 +162,11 @@ export const currentStaff = cache(async (): Promise<StaffMember | null> => {
 
 export function canViewAs(): boolean {
   return isDemo() || demoAccessConfigured();
+}
+
+/** Who "Ver como" offers: the sample people, plus anyone the owner added in this demo. */
+export async function viewAsPeople(): Promise<StaffMember[]> {
+  if (!canViewAs()) return [];
+  const team = (await listStaff()).filter((x) => x.active);
+  return [...DEMO_STAFF.filter((d) => !team.some((t) => t.id === d.id)), ...team];
 }

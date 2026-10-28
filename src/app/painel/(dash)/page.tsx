@@ -35,7 +35,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <PageHeader title={`Olá, ${staff.name.split(" ")[0]}`} path="/painel">
           <p className="mt-1 text-sm text-muted">{ROLE_LABEL[staff.role]} · o que fazer hoje no seu acesso</p>
         </PageHeader>
-        <TodayPanel day={actionsFor(ownerDay(s), staff)} showMoney={false} />
+        <TodayPanel day={actionsFor(ownerDay(s), staff)} showMoney={false} showMessages={Boolean(can(staff, "messages_utility") || can(staff, "messages_marketing"))} />
       </>
     );
   }

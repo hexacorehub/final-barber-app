@@ -14,8 +14,7 @@ import { RefreshDemoButton } from "./refresh-demo-button";
 import { UnitSwitcher } from "./unit-switcher";
 import { painelUnit } from "@/server/painel-scope";
 import { allowedUnits, can, ROLE_LABEL, type Permission } from "@/domain/access";
-import { canViewAs, currentStaff, listStaff } from "@/server/staff";
-import { ViewAs } from "./view-as";
+import { currentStaff } from "@/server/staff";
 import type { NavItem } from "./owner-nav";
 
 const NAV: (NavItem & { needs: Permission[] })[] = [
@@ -47,11 +46,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const items = NAV.filter((i) => !i.needs.length || i.needs.some((p) => (i.href === "/painel/assistente" ? can(staff, p) === "all" || can(staff, p) === "units" : can(staff, p))));
   const allowed = allowedUnits(staff);
   const switcherUnits = s.units.filter((u) => !allowed || allowed.includes(u.id));
-  const team = canViewAs() ? await listStaff() : [];
 
   return (
     <div className="min-h-dvh bg-white">
-      <DemoBar current="owner" />
+      <DemoBar current={staff.id} />
       <header className="bg-ink text-white">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-1 px-5 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -61,12 +59,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               <span className="border-l border-[#3a3a3a] pl-3 text-[13px] text-[#bdbdbd]">{staff.role === "owner" ? "Painel do dono" : `${staff.name.split(" (")[0]} · ${ROLE_LABEL[staff.role]}`}</span>
             </div>
             <div className="flex items-center gap-1 text-[13px]">
-              {team.length ? (
-                <ViewAs
-                  people={[{ id: "owner", label: "Dono" }, ...team.filter((t) => t.active).map((t) => ({ id: t.id, label: `${t.name.split(" (")[0]} · ${ROLE_LABEL[t.role]}` }))]}
-                  current={staff.id}
-                />
-              ) : null}
               <UnitSwitcher units={switcherUnits.map((u) => ({ id: u.id, name: u.name }))} current={unit?.id ?? null} allowAll={!allowed} />
               <Link href="/inicio" className="flex min-h-11 items-center rounded-lg px-3 text-[#d6d6d6] hover:text-white">
                 Ver app do cliente
