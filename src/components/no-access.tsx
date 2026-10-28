@@ -7,8 +7,8 @@ export function NoAccess({ what }: { what: string }) {
       <span className="flex size-12 items-center justify-center rounded-full bg-white">
         <Lock size={22} aria-hidden="true" />
       </span>
-      <p className="font-display text-xl font-semibold">Sem acesso a {what}</p>
-      <p className="max-w-md text-sm text-ink-soft">Seu acesso não inclui esta tela. Se precisar dela para o seu trabalho, peça para o dono liberar em Equipe e acessos.</p>
+      <p className="font-display text-xl font-semibold">Fora do seu acesso</p>
+      <p className="max-w-md text-sm text-ink-soft">Seu acesso não inclui {what}. Se precisar disso para o seu trabalho, peça para o dono liberar em Equipe e acessos.</p>
     </div>
   );
 }

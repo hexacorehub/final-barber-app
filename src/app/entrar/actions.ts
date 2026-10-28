@@ -2,10 +2,18 @@
 
 import { redirect } from "next/navigation";
 import { signInCustomer, signOutCustomer, signUpCustomer } from "@/server/customer-auth";
+import { BLOCKED_MESSAGE, clearFailures, isBlocked, recordFailure } from "@/server/rate-limit";
 
 export async function signIn(_: { error: string | null }, form: FormData): Promise<{ error: string | null }> {
-  const ok = await signInCustomer(String(form.get("identifier") ?? "").slice(0, 200), String(form.get("password") ?? "").slice(0, 200));
-  if (!ok) return { error: "CPF/e-mail ou senha incorretos." };
+  const identifier = String(form.get("identifier") ?? "").slice(0, 200);
+  const key = `customer:${identifier.trim().toLowerCase().replace(/[.\-\s]/g, "")}`;
+  if (isBlocked(key)) return { error: BLOCKED_MESSAGE };
+  const ok = await signInCustomer(identifier, String(form.get("password") ?? "").slice(0, 200));
+  if (!ok) {
+    recordFailure(key);
+    return { error: "CPF/e-mail ou senha incorretos." };
+  }
+  clearFailures(key);
   redirect("/inicio");
 }
 

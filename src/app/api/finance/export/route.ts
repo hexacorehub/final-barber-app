@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { financeExport } from "@/domain/finance-export";
-import { addDays, daysBetween } from "@/domain/time";
+import { addDays, dayKey, daysBetween } from "@/domain/time";
 import { loadSnapshot } from "@/server/data/store";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const s = await loadSnapshot();
-  const today = s.now.slice(0, 10);
+  const today = dayKey(s.now);
   const to = url.searchParams.get("to") ?? today;
   const from = url.searchParams.get("from") ?? addDays(to, -6);
   if (!DAY.test(from) || !DAY.test(to) || from > to) return NextResponse.json({ error: "Use from e to no formato AAAA-MM-DD, com from ≤ to." }, { status: 400 });

@@ -36,7 +36,7 @@ export function SignUpForm() {
     <label className="flex flex-col gap-1 text-sm font-semibold">
       {label}
       <input name={name} required aria-invalid={state.field === name} className={cn(input, state.field === name && "border-bad")} {...props} />
-      {state.field === name && state.error ? <span className="text-xs font-semibold text-bad">{state.error}</span> : null}
+      {state.field === name && state.error ? <span role="alert" className="text-xs font-semibold text-bad">{state.error}</span> : null}
     </label>
   );
   return (
