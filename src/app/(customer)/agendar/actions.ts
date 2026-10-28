@@ -23,7 +23,7 @@ const Input = z.object({
 export type BookingInput = z.infer<typeof Input>;
 
 export type BookingResult =
-  | { ok: true; when: string; unitName: string; people: { name: string; barber: string; services: string; payment: string }[] }
+  | { ok: true; when: string; startsAt: string; durationMin: number; unitName: string; unitAddress: string; shopName: string; people: { name: string; barber: string; services: string; payment: string }[] }
   | { ok: false; error: string };
 
 /**
@@ -100,7 +100,11 @@ export async function bookAppointments(raw: BookingInput): Promise<BookingResult
   return {
     ok: true,
     when: `${input.day}T${hhmm(input.start)}`,
+    startsAt,
+    durationMin,
     unitName: s.units.find((u) => u.id === decision.unitId)?.name ?? "",
+    unitAddress: s.units.find((u) => u.id === decision.unitId)?.address ?? "",
+    shopName: s.shop.name,
     people: rows.map((r, i) => ({
       name: people[i].name.split(" ")[0],
       barber: s.barbers.find((b) => b.id === r.barberId)?.name ?? "",

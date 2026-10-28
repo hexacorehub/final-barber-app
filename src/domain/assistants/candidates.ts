@@ -97,7 +97,20 @@ export function chanceFor(score: number, segment: CandidateSegment = "saves"): C
   return score >= 70 ? "alta" : score >= 50 ? "media" : "baixa";
 }
 
+const candidateCache = new WeakMap<Snapshot, ClubCandidate[]>();
+
 export function clubCandidates(s: Snapshot, windowDays?: number): ClubCandidate[] {
+  if (windowDays === undefined) {
+    const hit = candidateCache.get(s);
+    if (hit) return hit;
+    const list = computeCandidates(s);
+    candidateCache.set(s, list);
+    return list;
+  }
+  return computeCandidates(s, windowDays);
+}
+
+function computeCandidates(s: Snapshot, windowDays?: number): ClubCandidate[] {
   const today = dayKey(s.now);
   const stats = visitStats(s, windowDays);
   const customers = new Map(s.customers.map((c) => [c.id, c]));

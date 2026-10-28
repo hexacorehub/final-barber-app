@@ -1,4 +1,5 @@
-import type { OpeningHours } from "./types";
+import type { OpeningHours, Snapshot } from "./types";
+import { dayKey, localParts } from "./time";
 
 /** Busy intervals of one barber on one day, in minutes after midnight. */
 export type BusyDay = [start: number, end: number][];
@@ -6,6 +7,19 @@ export type BusyDay = [start: number, end: number][];
 export type BusyMap = Record<string, Record<string, BusyDay>>;
 
 export const SLOT_STEP_MIN = 30;
+
+/** Busy intervals of every barber from `fromDay` to `toDay` (canceled visits free the chair). */
+export function busyMapOf(s: Pick<Snapshot, "appointments">, fromDay: string, toDay: string): BusyMap {
+  const out: BusyMap = {};
+  for (const a of s.appointments) {
+    if (a.status === "canceled") continue;
+    const day = dayKey(a.startsAt);
+    if (day < fromDay || day > toDay) continue;
+    const start = localParts(a.startsAt).minutes;
+    ((out[a.barberId] ??= {})[day] ??= []).push([start, start + a.durationMin]);
+  }
+  return out;
+}
 /** Earliest a same-day booking can start, counted from now. */
 export const MIN_LEAD_MIN = 30;
 

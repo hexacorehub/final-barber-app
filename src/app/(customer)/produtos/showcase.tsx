@@ -16,14 +16,18 @@ const FILTERS: { id: ProductCategory | "all"; label: string }[] = [
   { id: "accessory", label: "Acessórios" },
 ];
 
-export function Showcase({ products, bestSellers }: { products: Product[]; bestSellers: string[] }) {
+export function Showcase({ products, bestSellers, forYou = [] }: { products: Product[]; bestSellers: string[]; forYou?: { id: string; reason: string }[] }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [reserved, setReserved] = useState<string[]>([]);
   const [error, setError] = useState<{ id: string; text: string } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, start] = useTransition();
 
-  const visible = products.filter((p) => filter === "all" || p.category === filter);
+  const reasonFor = new Map(forYou.map((x) => [x.id, x.reason]));
+  // Suggestions for this customer come first.
+  const visible = products
+    .filter((p) => filter === "all" || p.category === filter)
+    .sort((a, b) => Number(reasonFor.has(b.id)) - Number(reasonFor.has(a.id)));
   const reserve = (id: string) => {
     setPendingId(id);
     start(async () => {
@@ -58,11 +62,13 @@ export function Showcase({ products, bestSellers }: { products: Product[]; bestS
               <div className="relative">
                 <Photo src={p.photoUrl} alt={p.name} className="h-36 w-full rounded-xl md:h-48" fallback="Foto do produto" />
                 <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+                  {reasonFor.has(p.id) ? <Badge tone="ok">Para você</Badge> : null}
                   {bestSellers.includes(p.id) ? <Badge tone="dark">Mais vendido</Badge> : null}
                   {!soldOut && p.stock <= p.minStock ? <Badge tone="warn">Últimas unidades</Badge> : null}
                 </div>
               </div>
               <h2 className="text-sm leading-snug font-semibold">{p.name}</h2>
+              {reasonFor.has(p.id) ? <p className="text-xs font-semibold text-ok">{reasonFor.get(p.id)}</p> : null}
               <p className="line-clamp-2 text-xs text-muted">{p.description}</p>
               <p className="mt-auto font-display text-lg tracking-normal">{formatMoney(p.priceCents)}</p>
               {isReserved ? (

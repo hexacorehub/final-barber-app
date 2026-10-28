@@ -1,8 +1,11 @@
 import type { Customer, Snapshot } from "../types";
-import { addDays, dayKey, daysBetween } from "../time";
+import { addDays, dayKey, daysBetween, hhmm } from "../time";
 import { productStats, retentionRisk } from "../metrics";
 import { clubCandidates, type ClubCandidate } from "./candidates";
 import * as say from "./phrases";
+import { subscriptionRows, winBackList } from "./subscriptions";
+import { gapsFor } from "./gap-fill";
+import { can, covers, type Permission, type StaffMember } from "../access";
 
 /**
  * "Hoje na barbearia": what the owner should do today, ordered by the money involved.
@@ -12,7 +15,7 @@ import * as say from "./phrases";
 
 export const MONTHS_AT_STAKE = 3;
 
-export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "low_stock";
+export type ActionKind = "card_declined" | "member_late" | "offer_in_person" | "plan_request" | "club_invite" | "win_back" | "fill_gap" | "low_stock";
 
 export interface OwnerAction {
   id: string;
@@ -23,9 +26,11 @@ export interface OwnerAction {
   reason: string;
   valueCents: number;
   /** WhatsApp message, when the action is a message. */
-  message: { to: Customer; text: string } | null;
+  message: { to: Customer; aboutId: string; text: string } | null;
   /** Screen with the details. */
   href: string;
+  /** The barber it is about, when there is one (for "own" access). */
+  barberId?: string | null;
 }
 
 export interface OwnerDay {
@@ -53,7 +58,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `Cartão recusado: ${r.customer.name}`,
         reason: `${say.planShort(r.plan)} de ${say.first(r.customer.name)} não foi cobrado. Mandar o Pix hoje evita o cancelamento.`,
         valueCents: value,
-        message: { to, text: say.cardDeclined(to, r.plan) },
+        message: { to, aboutId: r.customer.id, text: say.cardDeclined(to, r.plan) },
         href: "/painel/clube#risco",
       });
     } else {
@@ -64,7 +69,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `${r.customer.name} sumiu`,
         reason: `Assina o ${say.planShort(r.plan)}, não vem há ${r.daysSinceVisit} dias (costuma vir a cada ${r.customer.cycleDays}) e não tem horário. Quem não usa o plano costuma cancelar.`,
         valueCents: value,
-        message: { to, text: say.memberLate(to, r.plan, r.daysSinceVisit ?? 0, null, n) },
+        message: { to, aboutId: r.customer.id, text: say.memberLate(to, r.plan, r.daysSinceVisit ?? 0, null, n) },
         href: "/painel/clube#risco",
       });
     }
@@ -83,6 +88,7 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         valueCents: value,
         message: null,
         href: "/painel/candidatos",
+        barberId: c.moment.barberId,
       });
     } else if (c.chance === "alta" && c.moment.kind !== "scheduled") {
       actions.push({
@@ -92,8 +98,9 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
         title: `Convide ${c.customer.name} para o ${say.planShort(c.plan)}`,
         reason: say.candidateReason(c, n),
         valueCents: value,
-        message: { to: c.decider, text: say.inviteMessage(c, n) },
+        message: { to: c.decider, aboutId: c.customer.id, text: say.inviteMessage(c, n) },
         href: "/painel/candidatos",
+        barberId: c.offerBarberId,
       });
     }
   }
@@ -113,8 +120,39 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
       title: `Pedido de plano esperando: ${about.name}`,
       reason: `Pediu o ${say.planShort(plan)} pelo app ${days === 0 ? "hoje" : `há ${days} ${days === 1 ? "dia" : "dias"}`}. Falta confirmar e ativar a cobrança.`,
       valueCents: plan.priceCents * MONTHS_AT_STAKE,
-      message: { to, text: say.planRequest(to, about, plan) },
+      message: { to, aboutId: about.id, text: say.planRequest(to, about, plan) },
       href: "/painel/clube#interessados",
+    });
+  }
+
+  for (const r of winBackList(subscriptionRows(s)).filter((x) => x.winBack?.chance === "alta")) {
+    const days = r.sub.canceledAt ? daysBetween(dayKey(r.sub.canceledAt), today) : 0;
+    actions.push({
+      id: `winback-${r.sub.id}`,
+      kind: "win_back",
+      money: "win",
+      title: `Traga ${r.customer.name} de volta`,
+      reason: `Cancelou o ${say.planShort(r.plan)} há ${days} dias, depois de ${r.months} meses${r.visitsAfterCancel ? `, e voltou ${r.visitsAfterCancel} ${r.visitsAfterCancel === 1 ? "vez" : "vezes"} pagando avulso` : ""}${r.sub.cancelReason ? `. Motivo: ${r.sub.cancelReason.toLowerCase()}` : ""}.`,
+      valueCents: r.plan.priceCents * MONTHS_AT_STAKE,
+      message: { to: r.payer, aboutId: r.customer.id, text: say.winBack(r.payer, r.plan, r.months, r.visitsAfterCancel, n) },
+      href: "/painel/assinaturas?status=canceled",
+    });
+  }
+
+  for (const g of gapsFor(s, tomorrow)) {
+    if (!g.offers.length) continue;
+    const o = g.offers[0];
+    const hours = Math.round((g.freeMinutes / 60) * 10) / 10;
+    actions.push({
+      id: `gap-${g.barber.id}`,
+      kind: "fill_gap",
+      money: "win",
+      title: `${g.barber.name.split(" ")[0]} tem ${hours.toLocaleString("pt-BR")} h livres amanhã`,
+      reason: `${g.offers.length} ${g.offers.length === 1 ? "cliente dele está" : "clientes dele estão"} no ponto de voltar e costumam vir nesse horário. Comece por ${say.first(o.customer.name)}, às ${hhmm(o.start)}.`,
+      valueCents: g.offers.reduce((t, x) => t + x.visitCents, 0),
+      message: { to: o.to, aboutId: o.customer.id, text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) },
+      href: "/painel/barbeiros#encaixe",
+      barberId: g.barber.id,
     });
   }
 
@@ -132,8 +170,35 @@ export function ownerDay(s: Snapshot, candidates: ClubCandidate[] = clubCandidat
     });
   }
 
-  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, low_stock: 5 };
+  const order: Record<ActionKind, number> = { card_declined: 0, plan_request: 1, offer_in_person: 2, member_late: 3, club_invite: 4, win_back: 5, fill_gap: 6, low_stock: 7 };
   actions.sort((a, b) => b.valueCents - a.valueCents || order[a.kind] - order[b.kind]);
+  return {
+    actions,
+    keepCents: actions.filter((a) => a.money === "keep").reduce((t, a) => t + a.valueCents, 0),
+    winCents: actions.filter((a) => a.money === "win").reduce((t, a) => t + a.valueCents, 0),
+  };
+}
+
+
+const NEEDS: Record<ActionKind, Permission> = {
+  card_declined: "subscriptions",
+  member_late: "subscriptions",
+  win_back: "subscriptions",
+  plan_request: "requests",
+  offer_in_person: "candidates",
+  club_invite: "candidates",
+  fill_gap: "agenda",
+  low_stock: "products",
+};
+
+/** Only the suggestions this person's access covers. */
+const MARKETING: ActionKind[] = ["club_invite", "win_back", "fill_gap"];
+
+export function actionsFor(day: OwnerDay, m: StaffMember): OwnerDay {
+  const actions = day.actions
+    .filter((a) => covers(m, can(m, NEEDS[a.kind]), { barberId: a.barberId ?? null }))
+    // The ready message only for who may send that kind of message.
+    .map((a) => (a.message && !can(m, MARKETING.includes(a.kind) ? "messages_marketing" : "messages_utility") ? { ...a, message: null } : a));
   return {
     actions,
     keepCents: actions.filter((a) => a.money === "keep").reduce((t, a) => t + a.valueCents, 0),

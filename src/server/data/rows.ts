@@ -28,6 +28,7 @@ export const shopToRow = (s: Shop): Row => ({
   rating_label: s.ratingLabel,
   cover_photo_url: s.coverPhotoUrl,
   portfolio: s.portfolio,
+  ...(s.referralRules ? { referral_rules: s.referralRules } : {}),
 });
 export const shopFromRow = (r: Row): Shop => ({
   name: String(r.name),
@@ -37,9 +38,19 @@ export const shopFromRow = (r: Row): Shop => ({
   ratingLabel: String(r.rating_label),
   coverPhotoUrl: (r.cover_photo_url as string | null) ?? null,
   portfolio: (r.portfolio as Shop["portfolio"]) ?? [],
+  referralRules: (r.referral_rules as Shop["referralRules"]) ?? null,
 });
 
-export const unitToRow = (u: Unit): Row => ({ id: u.id, name: u.name, address: u.address, phone: u.phone, photo_url: u.photoUrl, hours: u.hours });
+export const unitToRow = (u: Unit): Row => ({
+  id: u.id,
+  name: u.name,
+  address: u.address,
+  phone: u.phone,
+  photo_url: u.photoUrl,
+  hours: u.hours,
+  ...(u.cnpj ? { cnpj: u.cnpj } : {}),
+  ...(u.legalName ? { legal_name: u.legalName } : {}),
+});
 export const unitFromRow = (r: Row): Unit => ({
   id: String(r.id),
   name: String(r.name),
@@ -47,6 +58,8 @@ export const unitFromRow = (r: Row): Unit => ({
   phone: (r.phone as string | null) ?? null,
   photoUrl: (r.photo_url as string | null) ?? null,
   hours: r.hours as Unit["hours"],
+  cnpj: (r.cnpj as string | null) ?? null,
+  legalName: (r.legal_name as string | null) ?? null,
 });
 
 export const barberToRow = (b: Barber): Row => ({
@@ -145,6 +158,8 @@ export const customerToRow = (c: Customer): Row => ({
   relationship: c.relationship,
   minor: c.minor,
   referral_code: c.referralCode,
+  ...(c.cpf ? { cpf: c.cpf } : {}),
+  ...(c.email ? { email: c.email } : {}),
 });
 export const customerFromRow = (r: Row): Customer => ({
   id: String(r.id),
@@ -157,6 +172,8 @@ export const customerFromRow = (r: Row): Customer => ({
   relationship: (r.relationship as Customer["relationship"]) ?? null,
   minor: Boolean(r.minor),
   referralCode: String(r.referral_code ?? ""),
+  cpf: (r.cpf as string | null) ?? null,
+  email: (r.email as string | null) ?? null,
 });
 
 export const subscriptionToRow = (s: Subscription): Row => ({
@@ -171,6 +188,9 @@ export const subscriptionToRow = (s: Subscription): Row => ({
   sold_by_barber_id: s.soldByBarberId,
   channel: s.channel,
   referred_by_customer_id: s.referredByCustomerId,
+  // Optional columns: only sent when set, so older databases keep working.
+  ...(s.cancelReason ? { cancel_reason: s.cancelReason } : {}),
+  ...(s.billingUnitId ? { billing_unit_id: s.billingUnitId } : {}),
 });
 export const subscriptionFromRow = (r: Row): Subscription => ({
   id: String(r.id),
@@ -184,6 +204,8 @@ export const subscriptionFromRow = (r: Row): Subscription => ({
   soldByBarberId: (r.sold_by_barber_id as string | null) ?? null,
   channel: r.channel as Subscription["channel"],
   referredByCustomerId: (r.referred_by_customer_id as string | null) ?? null,
+  cancelReason: (r.cancel_reason as string | null) ?? null,
+  billingUnitId: (r.billing_unit_id as string | null) ?? null,
 });
 
 export const appointmentToRow = (a: Appointment): Row => ({

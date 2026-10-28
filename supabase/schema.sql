@@ -23,6 +23,8 @@ create table if not exists shop_settings (
   portfolio jsonb not null default '[]'
 );
 
+alter table shop_settings add column if not exists referral_rules jsonb;
+
 create table if not exists units (
   id text primary key,
   name text not null,
@@ -32,6 +34,9 @@ create table if not exists units (
   -- 7 entries, Sunday first: {"open": 540, "close": 1200} in minutes, or null when closed.
   hours jsonb not null
 );
+
+alter table units add column if not exists cnpj text;
+alter table units add column if not exists legal_name text;
 
 create table if not exists barbers (
   id text primary key,
@@ -93,6 +98,11 @@ create table if not exists customers (
   check ((holder_id is null) = (relationship is null))
 );
 create index if not exists customers_holder_idx on customers (holder_id);
+-- One CPF per account, one e-mail per account (only when filled in).
+alter table customers add column if not exists cpf text;
+alter table customers add column if not exists email text;
+create unique index if not exists customers_cpf_unique on customers (cpf) where cpf is not null;
+create unique index if not exists customers_email_unique on customers (lower(email)) where email is not null;
 
 create table if not exists subscriptions (
   id text primary key,
@@ -109,6 +119,8 @@ create table if not exists subscriptions (
   referred_by_customer_id text references customers(id)
 );
 -- One plan in force per person: several plans per account, never two for the same person.
+alter table subscriptions add column if not exists cancel_reason text;
+alter table subscriptions add column if not exists billing_unit_id text references units(id);
 create unique index if not exists subscriptions_one_per_person on subscriptions (customer_id) where status <> 'canceled';
 
 create table if not exists appointments (
@@ -170,6 +182,52 @@ create table if not exists gallery_photos (
   created_at timestamptz not null default now()
 );
 
+-- Messages the owner opened from an assistant suggestion (for the assistant's scoreboard).
+create table if not exists assistant_actions (
+  id text primary key,
+  kind text not null,
+  customer_id text not null references customers(id),
+  created_at timestamptz not null default now()
+);
+create index if not exists assistant_actions_created_idx on assistant_actions (created_at);
+
+-- Team access (dashboard roles). The owner enters with PAINEL_PASSCODE; with STAFF_LOGIN=on the
+-- team signs in with e-mail and password (scrypt hash).
+create table if not exists staff (
+  id text primary key,
+  name text not null,
+  email text not null unique,
+  role text not null check (role in ('owner','manager','reception','barber')),
+  unit_ids text[] not null default '{}',
+  barber_id text references barbers(id),
+  overrides jsonb not null default '{}',
+  active boolean not null default true,
+  password_hash text
+);
+create table if not exists staff_sessions (
+  token_hash text primary key,
+  staff_id text not null references staff(id) on delete cascade,
+  expires_at timestamptz not null
+);
+create table if not exists staff_audit (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  actor text not null,
+  target text not null,
+  change text not null
+);
+
+-- Customer sign-in (CUSTOMER_LOGIN=on): password (scrypt) and sessions.
+create table if not exists customer_credentials (
+  customer_id text primary key references customers(id) on delete cascade,
+  password_hash text not null
+);
+create table if not exists customer_sessions (
+  token_hash text primary key,
+  customer_id text not null references customers(id) on delete cascade,
+  expires_at timestamptz not null
+);
+
 alter table shop_settings enable row level security;
 alter table units enable row level security;
 alter table barbers enable row level security;
@@ -183,6 +241,12 @@ alter table product_sales enable row level security;
 alter table product_reservations enable row level security;
 alter table plan_leads enable row level security;
 alter table gallery_photos enable row level security;
+alter table assistant_actions enable row level security;
+alter table staff enable row level security;
+alter table staff_sessions enable row level security;
+alter table staff_audit enable row level security;
+alter table customer_credentials enable row level security;
+alter table customer_sessions enable row level security;
 
 -- Data API access: only the server's secret key (service_role) may touch these tables.
 -- Explicit so it works with "Automatically expose new tables" turned off (recommended).

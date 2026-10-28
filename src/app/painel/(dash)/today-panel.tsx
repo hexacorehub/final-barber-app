@@ -6,18 +6,20 @@ import { MONTHS_AT_STAKE, type ActionKind, type OwnerDay } from "@/domain/assist
 import { formatMoneyCompact, formatMoneyRound } from "@/domain/money";
 
 const KIND: Record<ActionKind, { label: string; plural: string; tone: "bad" | "warn" | "ok" | "neutral" | "dark"; href: string }> = {
-  card_declined: { label: "Cobrança", plural: "cartões recusados", tone: "bad", href: "/painel/clube#risco" },
-  member_late: { label: "Retenção", plural: "assinantes sumidos", tone: "warn", href: "/painel/clube#risco" },
+  card_declined: { label: "Cobrança", plural: "cartões recusados", tone: "bad", href: "/painel/assinaturas?status=risk" },
+  member_late: { label: "Retenção", plural: "assinantes sumidos", tone: "warn", href: "/painel/assinaturas?status=risk" },
   offer_in_person: { label: "Oferta no balcão", plural: "ofertas no balcão", tone: "ok", href: "/painel/candidatos" },
   club_invite: { label: "Convite", plural: "convites para o clube", tone: "ok", href: "/painel/candidatos?chance=alta" },
   plan_request: { label: "Pedido", plural: "pedidos de plano", tone: "dark", href: "/painel/clube#interessados" },
+  fill_gap: { label: "Encaixe", plural: "barbeiros com horário vago amanhã", tone: "neutral", href: "/painel/barbeiros#encaixe" },
+  win_back: { label: "Reconquista", plural: "ex-assinantes para reconquistar", tone: "ok", href: "/painel/assinaturas?status=canceled" },
   low_stock: { label: "Estoque", plural: "produtos para repor", tone: "neutral", href: "/painel/produtos" },
 };
 
-const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "member_late", "low_stock"];
+const ORDER: ActionKind[] = ["card_declined", "plan_request", "offer_in_person", "club_invite", "win_back", "fill_gap", "member_late", "low_stock"];
 
 /** The Gerente assistant on the overview: what to do today, by money involved. */
-export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) {
+export function TodayPanel({ day, show = 5, showMoney = true }: { day: OwnerDay; show?: number; showMoney?: boolean }) {
   const counts = new Map<ActionKind, number>();
   for (const a of day.actions) counts.set(a.kind, (counts.get(a.kind) ?? 0) + 1);
   // Always show variety: the top action of each kind first, then by value.
@@ -33,10 +35,10 @@ export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) 
             <AssistantTag />
           </div>
           <p className="text-[13px] text-muted">
-            O que fazer hoje, em ordem de valor. Assinaturas contam {MONTHS_AT_STAKE} meses de mensalidade.
+            {showMoney ? `O que fazer hoje, em ordem de valor. Assinaturas contam ${MONTHS_AT_STAKE} meses de mensalidade.` : "O que fazer hoje, em ordem de prioridade."}
           </p>
         </div>
-        <div className="flex gap-5 text-right">
+        <div className={showMoney ? "flex gap-5 text-right" : "hidden"}>
           <div>
             <p className="text-[13px] text-muted">Para segurar</p>
             <p className="font-display text-2xl">{formatMoneyCompact(day.keepCents)}</p>
@@ -59,9 +61,9 @@ export function TodayPanel({ day, show = 5 }: { day: OwnerDay; show?: number }) 
               <p className="text-[13px] leading-relaxed text-muted">{a.reason}</p>
             </div>
             <div className="flex items-center gap-3 md:justify-end">
-              {a.valueCents ? <span className="text-sm font-semibold md:w-28 md:text-right">{formatMoneyRound(a.valueCents)}</span> : null}
+              {a.valueCents && showMoney ? <span className="text-sm font-semibold md:w-28 md:text-right">{formatMoneyRound(a.valueCents)}</span> : null}
               {a.message ? (
-                <WhatsAppButton phone={a.message.to.phone} text={a.message.text} label="Mensagem" />
+                <WhatsAppButton phone={a.message.to.phone} text={a.message.text} label="Mensagem" track={{ kind: a.kind, customerId: a.message.aboutId }} />
               ) : (
                 <Link href={a.href} className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-[13px] font-semibold hover:bg-chip">
                   Ver <ArrowRight size={14} aria-hidden="true" />

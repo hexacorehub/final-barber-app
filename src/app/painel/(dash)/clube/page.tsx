@@ -4,20 +4,25 @@ import { ArrowRight, MessageCircle } from "lucide-react";
 import { DataTable, Empty, PageHeader, Panel, parsePeriod } from "@/components/dashboard";
 import { Badge, Meter, Stat } from "@/components/ui";
 import { messages, whatsappMessage } from "@/components/whatsapp";
-import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralStats, retentionRisk } from "@/domain/metrics";
+import { clubTotals, memberHistory, periodRange, planIndicators, plansSoldByBarber, referralCredits, referralStats, retentionRisk } from "@/domain/metrics";
 import { clubCandidates } from "@/domain/assistants/candidates";
 import { inviteMessage, namesFor } from "@/domain/assistants/phrases";
 import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { formatInt, formatMoney, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
 import { dayKey, monthShort, shortDate } from "@/domain/time";
-import { loadSnapshot } from "@/server/data/store";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Mister Club" };
 
 const short = (name: string) => name.replace("Mister Club ", "");
 
 export default async function ClubDashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const s = await loadSnapshot();
+  const staff = (await currentStaff())!;
+  if (!can(staff, "subscriptions")) return <NoAccessPage title="Mister Club" what="o Mister Club" />;
+  const s = await painelSnapshot();
   const range = periodRange(parsePeriod((await searchParams).periodo), new Date(s.now));
   const totals = clubTotals(s, range);
   const plans = planIndicators(s, range);
@@ -34,6 +39,9 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const fromApp = s.subscriptions.filter((x) => x.channel === "app" && x.status !== "canceled").length;
   const referrals = referralStats(s, range);
+  const credits = referralCredits(s);
+  const queued = credits.filter((c) => c.status === "queued").length;
+  const lost = credits.filter((c) => c.status === "expired" || c.status === "over_limit").length;
   const currentPlanOf = (customerId: string) => {
     const sub = s.subscriptions.find((x) => x.customerId === customerId && x.status !== "canceled");
     return sub ? plansById.get(sub.planId) : undefined;
@@ -46,7 +54,9 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Stat dark label="Receita recorrente" value={formatMoneyCompact(totals.mrrCents)} hint="por mês" />
         <Stat label="Assinantes" value={formatInt(totals.members)} hint={`${totals.dependents} em contas familiares · ${totals.paused} pausados`} />
-        <Stat label="Entradas e saídas" value={`+${totals.newInRange} / −${totals.canceledInRange}`} hint="no período" />
+        <Link href="/painel/assinaturas" className="rounded-2xl hover:ring-2 hover:ring-ink">
+          <Stat label="Entradas e saídas" value={`+${totals.newInRange} / −${totals.canceledInRange}`} hint="no período · ver todas" />
+        </Link>
         <Stat label="Pagamentos recusados" value={formatInt(totals.pastDue)} hint={`${formatMoneyRound(totals.pastDueCents)} a recuperar`} />
         <Stat label="Vendidos pelo app" value={formatInt(fromApp)} hint="assinaturas ativas" />
       </div>
@@ -179,15 +189,26 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
             )}
           </Panel>
         </div>
-        <Panel title="Quem vendeu" className="flex-[1_1_320px]" note="Assinaturas novas no período por barbeiro">
+        <Panel
+          title="Quem vendeu"
+          className="flex-[1_1_320px]"
+          note="Assinaturas novas no período por barbeiro"
+          action={
+            <Link href="/painel/assinaturas?vendedor=none" className="flex min-h-11 items-center gap-1 text-sm font-semibold">
+              Sem barbeiro <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          }
+        >
           {sellers.length ? (
             <ol className="flex flex-col divide-y divide-line-soft">
               {sellers.map((x) => (
-                <li key={x.barber.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-                  <span className="font-semibold">{x.barber.name}</span>
-                  <span>
-                    {x.count} · <span className="text-muted">+{formatMoneyRound(x.mrrCents)}/mês</span>
-                  </span>
+                <li key={x.barber.id}>
+                  <Link href={`/painel/assinaturas?vendedor=${x.barber.id}`} className="flex items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-chip">
+                    <span className="font-semibold">{x.barber.name}</span>
+                    <span>
+                      {x.count} · <span className="text-muted">+{formatMoneyRound(x.mrrCents)}/mês</span>
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ol>
@@ -198,13 +219,27 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       </div>
 
       <div id="indicacoes" className="scroll-mt-6">
-        <Panel title="Programa de indicação" note="Cada amigo que assina pelo convite vale 50% numa próxima mensalidade de quem indicou">
+        <Panel
+          title="Programa de indicação"
+          note="Cada amigo vale 50% em uma mensalidade do titular que indicou, um desconto por mês, depois da 1ª mensalidade paga do amigo"
+          action={
+            <div className="flex gap-1">
+              <Link href="/painel/assinaturas?indicacao=com" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Com indicação <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link href="/painel/assinaturas?indicacao=sem" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Sem indicação <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          }
+        >
           <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px border-b border-line-soft bg-line-soft">
             {[
               ["Novos por indicação", `${referrals.joinedInRange}`, "no período"],
               ["Indicados ativos", `${referrals.activeReferred}`, `${formatMoneyRound(referrals.mrrFromReferralsCents)}/mês`],
               ["Descontos concedidos", formatMoneyRound(referrals.discountsInRangeCents), "no período"],
               ["Convites aguardando", `${referrals.pendingLeads}`, "pedidos pelo app"],
+              ["Descontos na fila", `${queued}`, `${lost} vencidos ou além do limite`],
             ].map(([label, value, hint]) => (
               <div key={label} className="flex flex-col gap-1 bg-white px-5 py-4">
                 <span className="text-[13px] text-muted">{label}</span>
@@ -233,7 +268,20 @@ export default async function ClubDashboardPage({ searchParams }: { searchParams
       </div>
 
       <div id="risco" className="scroll-mt-6">
-        <Panel title="Assinantes em risco" note="Cartão recusado, ou sem visita bem além do ritmo de costume e sem horário marcado">
+        <Panel
+          title="Assinantes em risco"
+          note="Cartão recusado, ou sem visita bem além do ritmo de costume e sem horário marcado"
+          action={
+            <div className="flex gap-1">
+              <Link href="/painel/assinaturas?status=risk" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Em risco <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link href="/painel/assinaturas?status=canceled" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold hover:bg-chip">
+                Canceladas <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          }
+        >
           {risk.length ? (
             <DataTable
               minWidth={720}
@@ -279,5 +327,14 @@ function WhatsAppLink({ href, label }: { href: string; label: string }) {
     <a href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border-[1.5px] border-ink px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-chip">
       <MessageCircle size={15} aria-hidden="true" /> {label}
     </a>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
+    </>
   );
 }

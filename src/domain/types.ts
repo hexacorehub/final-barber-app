@@ -25,6 +25,8 @@ export interface Shop {
   coverPhotoUrl: string | null;
   /** Work shown in "Resultados" on the app. */
   portfolio: PortfolioPhoto[];
+  /** Referral program parameters the owner changed (domain/referral-rules.ts has the defaults). */
+  referralRules?: { discountPct?: number; perCharge?: number; maxQueued?: number; expiryMonths?: number } | null;
 }
 
 export interface Unit {
@@ -35,6 +37,9 @@ export interface Unit {
   photoUrl: string | null;
   /** Indexed by weekday; null = closed. */
   hours: (OpeningHours | null)[];
+  /** Company of this unit: same root (first 8 digits) = branches of one company. */
+  cnpj?: string | null;
+  legalName?: string | null;
 }
 
 export interface Barber {
@@ -115,6 +120,10 @@ export interface Customer {
   minor: boolean;
   /** Code this customer shares in the referral program. */
   referralCode: string;
+  /** One CPF per account (unique); optional for people managed by a holder. */
+  cpf?: string | null;
+  /** Sign-in e-mail (unique), for account holders. */
+  email?: string | null;
 }
 
 export type SubscriptionStatus = "active" | "paused" | "past_due" | "canceled";
@@ -136,6 +145,10 @@ export interface Subscription {
   channel: SalesChannel;
   /** Customer whose referral brought this subscription (earns 50% off one monthly fee). */
   referredByCustomerId: string | null;
+  /** Why it was canceled, when the customer said so. */
+  cancelReason?: string | null;
+  /** Unit that charges the monthly fee (and whose company books it). null = the shop as a whole. */
+  billingUnitId?: string | null;
 }
 
 export type AppointmentStatus = "scheduled" | "completed" | "no_show" | "canceled";
@@ -217,4 +230,6 @@ export interface Snapshot {
   leads: PlanLead[];
   galleryPhotos: GalleryPhoto[];
   now: string;
+  /** Set on a unit-scoped snapshot: the whole shop, for rules that cross units (referral credits). */
+  scopedFrom?: Snapshot;
 }

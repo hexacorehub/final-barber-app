@@ -11,6 +11,11 @@ import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
 import { AccountControls } from "./account-controls";
 import { AddMemberForm } from "./add-member-form";
+import { AssistantTag } from "@/components/assistant";
+import { familyNotes } from "@/domain/assistants/family";
+import { maskCpf } from "@/domain/access";
+import { customerLoginEnabled } from "@/server/customer-auth";
+import { signOut } from "../../entrar/actions";
 
 export const metadata: Metadata = { title: "Conta" };
 
@@ -24,6 +29,7 @@ export default async function AccountPage() {
   const members = household(s, meId);
   const iAmHolder = members[0]?.customer.id === meId;
   const others = members.filter((m) => m.customer.id !== meId);
+  const notes = iAmHolder ? familyNotes(s, meId) : [];
   const pendingPlan = (customerId: string) => {
     const lead = s.leads.find((l) => l.customerId === customerId && !s.subscriptions.some((x) => x.customerId === customerId && x.planId === l.planId && x.status !== "canceled"));
     return lead ? s.plans.find((p) => p.id === lead.planId) : undefined;
@@ -34,8 +40,16 @@ export default async function AccountPage() {
       <div>
         <h1 className="font-display text-[28px] font-semibold md:text-[36px]">Minha conta</h1>
         <p className="text-sm text-muted">
-          {me.customer.name} · {me.customer.phone} · {iAmHolder ? "Titular" : "Conta gerenciada pelo titular"}
+          {me.customer.name} · {me.customer.phone}
+          {me.customer.cpf ? ` · CPF ${maskCpf(me.customer.cpf)}` : ""} · {iAmHolder ? "Titular" : "Conta gerenciada pelo titular"}
         </p>
+        {customerLoginEnabled() ? (
+          <form action={signOut} className="mt-2">
+            <button type="submit" className="text-sm font-semibold underline">
+              Sair da conta
+            </button>
+          </form>
+        ) : null}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 md:gap-8">
@@ -65,6 +79,25 @@ export default async function AccountPage() {
               Conhecer o Mister Club
             </Link>
           )}
+
+          {notes.length ? (
+            <section className="flex flex-col gap-2.5" aria-label="Avisos da família">
+              <div className="flex items-center gap-2">
+                <Eyebrow>Avisos da conta</Eyebrow>
+                <AssistantTag />
+              </div>
+              <ul className="flex flex-col gap-2">
+                {notes.map((n) => (
+                  <li key={`${n.kind}-${n.customer.id}`}>
+                    <Link href={n.href} className="flex items-center gap-3 rounded-2xl bg-chip p-4 text-sm hover:bg-line">
+                      <span className="flex-1">{n.text}</span>
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section id="familia" className="flex scroll-mt-24 flex-col gap-2.5">
             <Eyebrow>Família na conta</Eyebrow>

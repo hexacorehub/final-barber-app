@@ -32,7 +32,15 @@ export interface VisitStats {
 
 export const STATS_WINDOW_DAYS = 90;
 
+const statsCache = new WeakMap<Snapshot, Map<number, Map<string, VisitStats>>>();
+
 export function visitStats(s: Snapshot, windowDays = STATS_WINDOW_DAYS): Map<string, VisitStats> {
+  const cache = statsCache.get(s) ?? statsCache.set(s, new Map()).get(s)!;
+  if (!cache.has(windowDays)) cache.set(windowDays, computeStats(s, windowDays));
+  return cache.get(windowDays)!;
+}
+
+function computeStats(s: Snapshot, windowDays: number): Map<string, VisitStats> {
   const today = dayKey(s.now);
   const from = addDays(today, -windowDays + 1);
   const services = new Map(s.services.map((x) => [x.id, x]));

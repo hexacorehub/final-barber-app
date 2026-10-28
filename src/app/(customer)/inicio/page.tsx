@@ -9,6 +9,11 @@ import { formatMoney, formatMoneyRound } from "@/domain/money";
 import { addDays, dayKey } from "@/domain/time";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
+import { nextUsualBooking } from "@/domain/assistants/habits";
+import { dayWords, timeOf } from "@/domain/assistants/phrases";
+import { fromLocal } from "@/domain/time";
+import { AssistantTag } from "@/components/assistant";
+import { refillsFor } from "@/domain/assistants/shelf";
 
 export const metadata: Metadata = { title: "Início" };
 
@@ -19,6 +24,10 @@ export default async function HomePage() {
 
   const today = dayKey(s.now);
   const next = me.upcoming[0];
+  const usual = nextUsualBooking(s, me.customer.id);
+  const refill = refillsFor(s, me.customer.id)[0] ?? null;
+  const others = usual ? usual.customerIds.slice(1).map((id) => firstName(s.customers.find((c) => c.id === id)?.name ?? "")) : [];
+  const alsoComes = usual ? usual.habit.companions.filter((id) => !usual.customerIds.includes(id)).map((id) => firstName(s.customers.find((c) => c.id === id)?.name ?? "")) : [];
   const cycle = me.customer.cycleDays;
   const since = me.daysSinceVisit;
   const dueIn = me.nextSuggested ? Math.round((Date.parse(me.nextSuggested) - Date.parse(today)) / 86_400_000) : null;
@@ -69,6 +78,27 @@ export default async function HomePage() {
             </Card>
           ) : null}
 
+          {usual ? (
+            <Card className="flex flex-col gap-3 border-[1.5px] border-ink">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-display text-[13px] tracking-[0.14em]">O de sempre</span>
+                <AssistantTag />
+              </div>
+              <p className="text-[15px] leading-relaxed">
+                <strong>{serviceNames(usual.habit.serviceIds, s.services)}</strong> com {barberName(usual.barberId, s.barbers)},{" "}
+                <span className="first-letter:uppercase">{dayWords(usual.day, s.now)}</span> às {timeOf(fromLocal(usual.day, usual.start).toISOString())}
+                {others.length ? `, você e ${others.join(" e ")} lado a lado` : ""}. Unidade {s.units.find((u) => u.id === usual.unitId)?.name}.
+              </p>
+              <p className="text-[13px] text-muted">
+                Pelo seu ritmo de {usual.habit.rhythmDays} dias, no seu horário de costume.
+                {alsoComes.length ? ` ${alsoComes.join(" e ")} costuma vir junto: dá para incluir no agendamento.` : ""}
+              </p>
+              <Link href="/agendar?sempre=1" className={buttonStyles.primary}>
+                Agendar o de sempre
+              </Link>
+            </Card>
+          ) : null}
+
           {since !== null ? (
             <Card dark className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
@@ -101,6 +131,15 @@ export default async function HomePage() {
         </div>
 
         <div className="flex flex-col gap-4">
+          {refill ? (
+            <Link href={`/produtos#${refill.product.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line p-4 hover:border-ink">
+              <span className="flex flex-col gap-1">
+                <span className="text-[15px] font-semibold">{refill.product.name} deve estar acabando</span>
+                <span className="text-[13px] text-muted">Você comprou há {refill.daysAgo} dias; costuma durar uns {refill.lifeDays}. Reserve e retire no próximo corte.</span>
+              </span>
+              <ChevronRight size={20} aria-hidden="true" />
+            </Link>
+          ) : null}
           {me.plan && me.savedLast12MonthsCents > 0 ? (
             <Link href="/conta" className="flex items-center justify-between gap-3 rounded-2xl border-[1.5px] border-dashed border-ink p-4">
               <span className="flex flex-col gap-1">

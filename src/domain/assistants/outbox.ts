@@ -3,6 +3,8 @@ import { addDays, dayKey, daysBetween, fromLocal, localParts } from "../time";
 import { retentionRisk } from "../metrics";
 import { clubCandidates, type ClubCandidate } from "./candidates";
 import { expectedReturn, visitStats } from "./history";
+import { subscriptionRows, winBackList } from "./subscriptions";
+import { gapsFor } from "./gap-fill";
 import * as say from "./phrases";
 
 /**
@@ -22,7 +24,9 @@ export type Situation =
   | "card_declined"
   | "club_invite"
   | "plan_request"
-  | "club_welcome";
+  | "club_welcome"
+  | "win_back"
+  | "gap_offer";
 
 /** Meta's billing categories: utility (reminders, billing) is cheap, marketing costs ~10x. */
 export type MetaCategory = "utility" | "marketing";
@@ -51,12 +55,14 @@ export const SITUATIONS: Record<Situation, SituationInfo> = {
   club_invite: { label: "Convite para o clube", when: "Candidatos de alta chance, 1 vez a cada 30 dias", category: "marketing", manualMinutes: 3, dailyCap: 5, defaultOn: true },
   plan_request: { label: "Pedido de plano pelo app", when: "Assim que chega", category: "utility", manualMinutes: 3, dailyCap: null, defaultOn: true },
   club_welcome: { label: "Boas-vindas ao clube", when: "No dia da assinatura", category: "utility", manualMinutes: 2, dailyCap: null, defaultOn: true },
+  gap_offer: { label: "Encaixe em horário vago", when: "Véspera, para horários livres do barbeiro de costume", category: "marketing", manualMinutes: 3, dailyCap: 10, defaultOn: true },
+  win_back: { label: "Reconquista", when: "Ex-assinantes com boa chance de voltar, 1 vez", category: "marketing", manualMinutes: 3, dailyCap: 3, defaultOn: true },
 };
 
 export const SITUATION_ORDER = Object.keys(SITUATIONS) as Situation[];
 
 /** Most urgent first: money already lost, people waiting for an answer, then the rest. */
-const PRIORITY: Situation[] = ["card_declined", "plan_request", "no_show", "reminder_today", "reminder_eve", "member_late", "club_welcome", "after_visit", "club_invite", "walkin_due"];
+const PRIORITY: Situation[] = ["card_declined", "plan_request", "no_show", "reminder_today", "reminder_eve", "member_late", "club_welcome", "after_visit", "gap_offer", "club_invite", "win_back", "walkin_due"];
 
 export interface OutboxItem {
   id: string;
@@ -168,6 +174,19 @@ export function outboxToday(s: Snapshot): OutboxItem[] {
     push({ situation: "walkin_due", to, about, sendAt: iso(today, 10 * 60 + 30), text: say.walkInDue(to, st.daysSinceLast ?? 0, st.mainBarberId, n) });
   }
 
+  // Empty chairs tomorrow: offer them to customers who usually come at that time.
+  const gapOffers = gapsFor(s, tomorrow).flatMap((g) => g.offers.map((o) => ({ g, o })));
+  for (const { g, o } of gapOffers.slice(0, SITUATIONS.gap_offer.dailyCap ?? undefined)) {
+    if (out.some((x) => x.about.id === o.customer.id && (x.situation === "walkin_due" || x.situation === "member_late"))) continue;
+    push({ situation: "gap_offer", to: o.to, about: o.customer, sendAt: iso(today, 17 * 60), text: say.gapOffer(o.to, o.customer, g.barber.id, tomorrow, o.start, s.now, n) });
+  }
+
+  // Former members with a good chance of coming back (a few a day, best first).
+  for (const r of winBackList(subscriptionRows(s)).slice(0, SITUATIONS.win_back.dailyCap ?? undefined)) {
+    const to = r.payer;
+    push({ situation: "win_back", to, about: r.customer, sendAt: iso(today, 15 * 60), text: say.winBack(to, r.plan, r.months, r.visitsAfterCancel, n) });
+  }
+
   // Plan requests still waiting, and new members.
   for (const l of s.leads) {
     if (s.subscriptions.some((x) => x.customerId === l.customerId && x.planId === l.planId && x.status !== "canceled")) continue;
@@ -235,6 +254,8 @@ export function outboxVolume30d(s: Snapshot, candidates: ClubCandidate[] = clubC
     club_invite: candidates.filter((c) => c.chance === "alta").length,
     plan_request: s.leads.filter((l) => inWindow(l.createdAt)).length,
     club_welcome: s.subscriptions.filter((x) => inWindow(x.startedAt)).length,
+    gap_offer: Math.min(SITUATIONS.gap_offer.dailyCap ?? 0, gapsFor(s).reduce((t, g) => t + g.offers.length, 0)) * 26,
+    win_back: winBackList(subscriptionRows(s)).filter((r) => r.sub.canceledAt && inWindow(r.sub.canceledAt)).length,
   };
   return SITUATION_ORDER.map((situation) => ({ situation, last30: counts[situation] }));
 }

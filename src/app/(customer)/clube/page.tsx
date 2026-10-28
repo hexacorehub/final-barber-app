@@ -8,6 +8,8 @@ import { usageFromHistory } from "@/domain/plan-advice";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
 import { ClubPlans } from "./club-plans";
+import { PlanChat } from "./plan-chat";
+import { familyPlan } from "@/domain/assistants/family";
 
 export const metadata: Metadata = { title: "Mister Club" };
 
@@ -27,6 +29,12 @@ export default async function ClubPage({ searchParams }: { searchParams: Promise
   const query = new URLSearchParams();
   if (target && target.customer.id !== meId) query.set("para", target.customer.id);
   if (validReferral) query.set("indicacao", validReferral.referralCode);
+
+  const chatPeople = (me?.isHolder ? members : members.filter((m) => m.customer.id === meId)).map((m) => {
+    const u = usageFromHistory(s, m.customer.id);
+    return { id: m.customer.id, firstName: firstName(m.customer.name), isSelf: m.customer.id === meId, currentPlanId: m.plan?.id ?? null, history: u.enough ? { haircuts: u.haircuts, beards: u.beards } : null };
+  });
+  const fam = me?.isHolder && members.length > 1 ? familyPlan(s, meId) : null;
 
   return (
     <div className="flex flex-col gap-6 px-5 pt-5 md:gap-8 md:px-0 md:pt-8">
@@ -86,6 +94,22 @@ export default async function ClubPage({ searchParams }: { searchParams: Promise
           </Link>
         ) : null}
       </div>
+
+      <PlanChat
+        people={chatPeople}
+        plans={s.plans}
+        prices={{ haircutCents: haircut?.priceCents ?? 0, beardCents: beard?.priceCents ?? 0 }}
+        canChooseForOthers={Boolean(me?.isHolder)}
+        family={
+          fam
+            ? {
+                todayCents: fam.todayCents,
+                suggestedCents: fam.suggestedCents,
+                rows: fam.rows.map((r) => ({ name: r.isHolder ? "Você" : firstName(r.customer.name), current: r.current?.name ?? null, suggested: r.suggested?.name ?? null, todayCents: r.todayCents, suggestedCents: r.suggestedCents })),
+              }
+            : null
+        }
+      />
 
       <ClubPlans
         plans={s.plans}

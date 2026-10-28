@@ -7,15 +7,23 @@ import { Badge, Stat, cn } from "@/components/ui";
 import { frontDeskTime, outboxToday, outboxVolume30d, SITUATION_ORDER, SITUATIONS, type Situation } from "@/domain/assistants/outbox";
 import { first, timeOf } from "@/domain/assistants/phrases";
 import { formatInt } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
 const hours = (minutes: number) => (minutes < 90 ? `${formatInt(Math.round(minutes))} min` : `${formatInt(Math.round(minutes / 60))} h`);
 
 export default async function WhatsAppPage({ searchParams }: { searchParams: Promise<{ situacao?: string }> }) {
-  const s = await loadSnapshot();
-  const queue = outboxToday(s);
+  const staff = (await currentStaff())!;
+  if (!can(staff, "messages_utility") && !can(staff, "messages_marketing")) return <NoAccessPage title="WhatsApp" what="mensagens de WhatsApp" />;
+  const s = await painelSnapshot();
+  const utility = Boolean(can(staff, "messages_utility"));
+  const marketing = Boolean(can(staff, "messages_marketing"));
+  // Only the kinds of message this person may send.
+  const queue = outboxToday(s).filter((i) => (SITUATIONS[i.situation].category === "marketing" ? marketing : utility));
   const volume = outboxVolume30d(s);
   const time = frontDeskTime(s, volume);
   const wanted = (await searchParams).situacao as Situation | undefined;
@@ -127,7 +135,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
                     </div>
                     <MessageBubble text={i.text} />
                   </div>
-                  <WhatsAppButton phone={i.to.phone} text={i.text} label="Enviar" className="self-start" />
+                  <WhatsAppButton phone={i.to.phone} text={i.text} label="Enviar" className="self-start" track={{ kind: i.situation, customerId: i.about.id }} />
                 </li>
               );
             })}
@@ -150,5 +158,14 @@ function FilterLink({ href, active, label }: { href: string; active: boolean; la
     >
       {label}
     </Link>
+  );
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
+    </>
   );
 }

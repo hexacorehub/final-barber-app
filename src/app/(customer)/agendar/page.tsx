@@ -4,6 +4,7 @@ import { RELATIONSHIP_LABEL } from "@/domain/household";
 import { BOOKING_DAYS, bookablePeople, bookingUnits, busyMap, personBookings } from "@/server/booking";
 import { loadSnapshot } from "@/server/data/store";
 import { currentCustomerId } from "@/server/session";
+import { customerHabit, nextUsualBooking } from "@/domain/assistants/habits";
 import { BookingFlow, type BookingProps } from "./booking-flow";
 
 export const metadata: Metadata = { title: "Agendar" };
@@ -11,8 +12,9 @@ export const metadata: Metadata = { title: "Agendar" };
 /** Shown first; the rest sits behind "Ver todos os serviços". */
 const MAIN_SERVICES = new Set(["svc-haircut", "svc-haircut-scissor", "svc-haircut-kids", "svc-beard", "svc-mustache", "svc-neckline"]);
 
-export default async function BookingPage() {
+export default async function BookingPage({ searchParams }: { searchParams: Promise<{ sempre?: string }> }) {
   const s = await loadSnapshot();
+  const wantsUsual = (await searchParams).sempre === "1";
   const today = dayKey(s.now);
   const units = bookingUnits(s);
   const meId = await currentCustomerId();
@@ -33,6 +35,8 @@ export default async function BookingPage() {
     };
   });
 
+  const habit = customerHabit(s, meId);
+  const usual = wantsUsual ? nextUsualBooking(s, meId, BOOKING_DAYS) : null;
   const props: BookingProps = {
     people: people.map((p) => ({
       id: p.id,
@@ -53,6 +57,16 @@ export default async function BookingPage() {
     days,
     today,
     nowMinutes: localParts(s.now).minutes,
+    usual: habit ? { minute: habit.minute, weekday: habit.weekday, barberId: habit.barberId } : null,
+    initial: usual
+      ? {
+          who: usual.customerIds.filter((id) => people.some((x) => x.id === id)),
+          serviceIds: usual.habit.serviceIds,
+          sel: { mode: "professional", unitId: null, barberId: usual.barberId },
+          day: usual.day,
+          start: usual.start,
+        }
+      : null,
   };
 
   return <BookingFlow {...props} />;

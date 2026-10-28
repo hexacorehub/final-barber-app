@@ -174,6 +174,8 @@ describe("referral program", () => {
     const a = base.customers[0].id;
     const snap: Snapshot = {
       ...base,
+      // Three separate accounts: referring someone of your own account does not count.
+      customers: base.customers.map((c) => ({ ...c, holderId: null, relationship: null })),
       subscriptions: [
         sub("ref", a, "2026-01-02T12:00:00Z", null),
         sub("f1", base.customers[1].id, "2026-09-12T12:00:00Z", a),

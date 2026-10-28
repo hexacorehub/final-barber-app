@@ -1,5 +1,6 @@
 import type { Appointment, Barber, Customer, Plan, Product, Snapshot, Subscription } from "./types";
 import { addDays, addMonths, dayKey, daysBetween, daysInMonth, weekdayOf } from "./time";
+import { DEFAULT_REFERRAL_RULES, referralRules, type CreditStatus, type ReferralRules } from "./referral-rules";
 
 /**
  * Every number the dashboards show is computed here from the raw records — nothing is typed
@@ -90,85 +91,206 @@ function charged(sub: Subscription, day: string, today: string): boolean {
 }
 
 // ---------------------------------------------------------------------------------------
-// Referral program: each friend who subscribes with your invite gives 50% off one of your
-// next monthly fees (the first one after they joined that has no credit yet).
+// Referral program. The rules live in domain/referral-rules.ts (parameters the owner can
+// change): one credit per friend, born when the friend's first fee is paid, at most
+// `perCharge` per monthly fee, a line of at most `maxQueued`, valid for `expiryMonths`, and
+// applied to one plan of the account holder only.
 
-export const REFERRAL_DISCOUNT = 0.5;
+export const REFERRAL_DISCOUNT = DEFAULT_REFERRAL_RULES.discountPct;
 const FUTURE_MONTHS = 3;
-const discountCache = new WeakMap<Snapshot, Map<string, Map<string, number>>>();
 
-/** subscriptionId → billing day → discount in cents, past and for the next months. */
-export function referralDiscounts(s: Snapshot): Map<string, Map<string, number>> {
-  const cached = discountCache.get(s);
+export interface ReferralCredit {
+  /** The friend's subscription that earned it. */
+  friendSubscriptionId: string;
+  friendId: string;
+  /** Account holder who receives it. */
+  beneficiaryId: string;
+  /** Day the friend's first fee was paid; null while it was not. */
+  bornOn: string | null;
+  expiresOn: string | null;
+  status: CreditStatus;
+  /** Plan that gets the discount, and the fee it was (or will be) used on. */
+  targetSubscriptionId: string | null;
+  usedOn: string | null;
+  amountCents: number;
+}
+
+const creditCache = new WeakMap<Snapshot, ReferralCredit[]>();
+
+/** Every credit of the program, with what happened to it. */
+export function referralCredits(scoped: Snapshot): ReferralCredit[] {
+  // A friend from another unit still earns the referrer's credit: credits are shop-wide.
+  const s = scoped.scopedFrom ?? scoped;
+  const cached = creditCache.get(s);
   if (cached) return cached;
-  const out = new Map<string, Map<string, number>>();
+  const rules = referralRules(s);
   const today = dayKey(s.now);
+  const customers = new Map(s.customers.map((c) => [c.id, c]));
   const plans = new Map(s.plans.map((p) => [p.id, p]));
-  const earned = new Map<string, string[]>();
-  for (const x of s.subscriptions) {
-    if (!x.referredByCustomerId) continue;
-    (earned.get(x.referredByCustomerId) ?? earned.set(x.referredByCustomerId, []).get(x.referredByCustomerId)!).push(dayKey(x.startedAt));
+  const holderOf = (id: string) => customers.get(id)?.holderId ?? id;
+
+  const byBeneficiary = new Map<string, ReferralCredit[]>();
+  for (const friend of s.subscriptions) {
+    if (!friend.referredByCustomerId) continue;
+    const beneficiaryId = holderOf(friend.referredByCustomerId);
+    // Referring someone of your own account does not count.
+    if (holderOf(friend.customerId) === beneficiaryId || friend.customerId === friend.referredByCustomerId) continue;
+    const bornOn = firstPaidDay(friend, today);
+    const credit: ReferralCredit = {
+      friendSubscriptionId: friend.id,
+      friendId: friend.customerId,
+      beneficiaryId,
+      bornOn,
+      expiresOn: bornOn ? billingDayIn(Number(bornOn.slice(8)), addMonths(bornOn.slice(0, 7), rules.expiryMonths)) : null,
+      status: bornOn ? "queued" : friend.status === "canceled" ? "friend_left" : "awaiting_payment",
+      targetSubscriptionId: null,
+      usedOn: null,
+      amountCents: 0,
+    };
+    (byBeneficiary.get(beneficiaryId) ?? byBeneficiary.set(beneficiaryId, []).get(beneficiaryId)!).push(credit);
   }
-  for (const [referrerId, dates] of earned) {
-    const own = ownSubscription(s, referrerId);
-    const plan = own && plans.get(own.planId);
-    if (!own || !plan) continue;
-    const credits = [...dates].sort();
-    let next = 0;
-    const lastMonth = addMonths(today.slice(0, 7), FUTURE_MONTHS);
-    for (let m = dayKey(own.startedAt).slice(0, 7); m <= lastMonth && next < credits.length; m = addMonths(m, 1)) {
-      const day = billingDayIn(own.billingDay, m);
-      if (!charged(own, day, today) || credits[next] >= day) continue;
-      (out.get(own.id) ?? out.set(own.id, new Map()).get(own.id)!).set(day, Math.round(plan.priceCents * REFERRAL_DISCOUNT));
-      next++;
+
+  const out: ReferralCredit[] = [];
+  for (const [beneficiaryId, credits] of byBeneficiary) {
+    const target = referralTarget(s, beneficiaryId);
+    const plan = target && plans.get(target.planId);
+    const born = credits.filter((c) => c.bornOn).sort((a, b) => a.bornOn!.localeCompare(b.bornOn!));
+    if (!target || !plan) {
+      for (const c of born) c.status = "no_plan";
+      out.push(...credits);
+      continue;
     }
+    // Walk the target plan's charges in order, interleaved with the births of credits.
+    const lastMonth = addMonths(today.slice(0, 7), FUTURE_MONTHS);
+    const charges: string[] = [];
+    for (let m = born[0]?.bornOn?.slice(0, 7) ?? lastMonth; m <= lastMonth; m = addMonths(m, 1)) {
+      const day = billingDayIn(target.billingDay, m);
+      if (charged(target, day, today)) charges.push(day);
+    }
+    const line: ReferralCredit[] = [];
+    let next = 0;
+    const admit = (until: string) => {
+      while (next < born.length && born[next].bornOn! < until) {
+        const c = born[next++];
+        drop(line, c.bornOn!);
+        if (line.length >= rules.maxQueued) c.status = "over_limit";
+        else {
+          c.targetSubscriptionId = target.id;
+          line.push(c);
+        }
+      }
+    };
+    const drop = (q: ReferralCredit[], day: string) => {
+      for (let i = q.length - 1; i >= 0; i--) {
+        if (q[i].expiresOn! <= day) {
+          // Projected expirations stay "na fila" (with their date) until the day comes.
+          q[i].status = q[i].expiresOn! <= today ? "expired" : "queued";
+          q.splice(i, 1);
+        }
+      }
+    };
+    for (const day of charges) {
+      admit(day);
+      drop(line, day);
+      for (let k = 0; k < rules.perCharge && line.length; k++) {
+        const c = line.shift()!;
+        c.usedOn = day;
+        c.amountCents = Math.round(plan.priceCents * rules.discountPct);
+        c.status = day <= today ? "applied" : "scheduled";
+      }
+    }
+    admit("9999-12-31");
+    drop(line, today);
+    for (const c of line) c.targetSubscriptionId = target.id;
+    out.push(...credits);
   }
-  discountCache.set(s, out);
+  creditCache.set(s, out);
   return out;
 }
 
-/** The referrer's own plan (not one they pay for someone else). */
-function ownSubscription(s: Snapshot, customerId: string): Subscription | null {
-  return s.subscriptions.find((x) => x.customerId === customerId && x.status !== "canceled") ?? null;
+/**
+ * The friend's first fee is charged when the plan starts. It counts as paid unless that very
+ * first charge failed (still past due within the first month) or the plan was canceled the
+ * same day.
+ */
+function firstPaidDay(friend: Subscription, today: string): string | null {
+  const start = dayKey(friend.startedAt);
+  if (start > today) return null;
+  if (friend.canceledAt && dayKey(friend.canceledAt) <= start) return null;
+  if (friend.status === "past_due" && daysBetween(start, today) <= 31) return null;
+  return start;
+}
+
+/** The plan that receives the holder's discounts: their own, else the most expensive they pay for. */
+export function referralTarget(s: Snapshot, holderId: string): Subscription | null {
+  const own = s.subscriptions.find((x) => x.customerId === holderId && x.status !== "canceled");
+  if (own) return own;
+  const prices = new Map(s.plans.map((p) => [p.id, p.priceCents]));
+  return (
+    s.subscriptions
+      .filter((x) => x.payerCustomerId === holderId && x.status !== "canceled")
+      .sort((a, b) => (prices.get(b.planId) ?? 0) - (prices.get(a.planId) ?? 0))[0] ?? null
+  );
+}
+
+/** subscriptionId → billing day → discount in cents, past and for the next months. */
+export function referralDiscounts(s: Snapshot): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const c of referralCredits(s)) {
+    if (!c.usedOn || !c.targetSubscriptionId) continue;
+    const m = out.get(c.targetSubscriptionId) ?? out.set(c.targetSubscriptionId, new Map()).get(c.targetSubscriptionId)!;
+    m.set(c.usedOn, (m.get(c.usedOn) ?? 0) + c.amountCents);
+  }
+  return out;
 }
 
 export interface ReferralSummary {
   code: string;
-  joined: { customer: Customer; plan: Plan; since: string }[];
+  /** Whether this person can refer (only account holders do). */
+  canRefer: boolean;
+  joined: { customer: Customer; plan: Plan; since: string; credit: ReferralCredit | null }[];
   pending: { customer: Customer; plan: Plan; since: string }[];
   usedCents: number;
   next: { day: string; discountCents: number; priceCents: number } | null;
-  /** Credits earned but not scheduled yet (no plan of their own, or months ahead). */
+  /** Credits in line (not scheduled on a fee yet). */
   waiting: number;
+  /** The plan that receives the discounts. */
+  target: { subscription: Subscription; plan: Plan; forWhom: Customer } | null;
+  rules: ReferralRules;
 }
 
 export function referralSummary(s: Snapshot, customerId: string): ReferralSummary | null {
   const me = s.customers.find((c) => c.id === customerId);
   if (!me) return null;
   const today = dayKey(s.now);
+  const holderId = me.holderId ?? me.id;
   const customers = new Map(s.customers.map((c) => [c.id, c]));
   const plans = new Map(s.plans.map((p) => [p.id, p]));
+  const credits = referralCredits(s).filter((c) => c.beneficiaryId === holderId);
+  const creditOf = new Map(credits.map((c) => [c.friendSubscriptionId, c]));
   const joined = s.subscriptions
-    .filter((x) => x.referredByCustomerId === customerId)
-    .map((x) => ({ customer: customers.get(x.customerId)!, plan: plans.get(x.planId)!, since: dayKey(x.startedAt) }))
+    .filter((x) => x.referredByCustomerId && (customers.get(x.referredByCustomerId)?.holderId ?? x.referredByCustomerId) === holderId)
+    .map((x) => ({ customer: customers.get(x.customerId)!, plan: plans.get(x.planId)!, since: dayKey(x.startedAt), credit: creditOf.get(x.id) ?? null }))
     .filter((x) => x.customer && x.plan)
     .sort((a, b) => b.since.localeCompare(a.since));
   const pending = s.leads
     .filter((l) => l.referrerCustomerId === customerId && !s.subscriptions.some((x) => x.customerId === l.customerId && x.status !== "canceled"))
     .map((l) => ({ customer: customers.get(l.customerId)!, plan: plans.get(l.planId)!, since: dayKey(l.createdAt) }))
     .filter((x) => x.customer && x.plan);
-  const own = ownSubscription(s, customerId);
-  const schedule = own ? [...(referralDiscounts(s).get(own.id) ?? new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b)) : [];
-  const used = schedule.filter(([day]) => day <= today);
-  const upcoming = schedule.find(([day]) => day > today);
-  const ownPlan = own ? plans.get(own.planId) : null;
+  const used = credits.filter((c) => c.usedOn && c.usedOn <= today);
+  const upcoming = credits.filter((c) => c.usedOn && c.usedOn > today).sort((a, b) => a.usedOn!.localeCompare(b.usedOn!))[0];
+  const targetSub = referralTarget(s, holderId);
+  const targetPlan = targetSub ? plans.get(targetSub.planId) : null;
   return {
     code: me.referralCode,
+    canRefer: me.holderId === null,
     joined,
     pending,
-    usedCents: used.reduce((t, [, v]) => t + v, 0),
-    next: upcoming && ownPlan ? { day: upcoming[0], discountCents: upcoming[1], priceCents: ownPlan.priceCents } : null,
-    waiting: Math.max(0, joined.length - schedule.length),
+    usedCents: used.reduce((t, c) => t + c.amountCents, 0),
+    next: upcoming && targetPlan ? { day: upcoming.usedOn!, discountCents: upcoming.amountCents, priceCents: targetPlan.priceCents } : null,
+    waiting: credits.filter((c) => c.status === "queued" || c.status === "no_plan").length,
+    target: targetSub && targetPlan ? { subscription: targetSub, plan: targetPlan, forWhom: customers.get(targetSub.customerId) ?? me } : null,
+    rules: referralRules(s),
   };
 }
 

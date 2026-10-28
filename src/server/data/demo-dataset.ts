@@ -301,6 +301,22 @@ export function buildDemoSnapshot(now: Date): Snapshot {
   // Walk-in customers.
   for (let i = 0; i < 300; i++) customers.push(newCustomer(n++, r.chance(0.25) ? [9, 15] : [21, 60]));
 
+  // Why former members left (when they said so). Picked by id, so the random sequence above is untouched.
+  const REASONS = ["Mudou de bairro", "Achou caro", "Vinha pouco", "Problema no cartão", null, null];
+  for (const x of subscriptions) {
+    if (x.status !== "canceled") continue;
+    const h = [...x.id].reduce((t, ch) => (t * 31 + ch.charCodeAt(0)) | 0, 7);
+    x.cancelReason = REASONS[Math.abs(h) % REASONS.length];
+  }
+
+  // The unit that charges each plan: the one of the member's barber (no random draw).
+  const unitOfBarber = new Map(BARBERS.map((b) => [b.id, b.unitId]));
+  const byId = new Map(customers.map((c) => [c.id, c]));
+  for (const x of subscriptions) {
+    const payer = byId.get(x.payerCustomerId);
+    x.billingUnitId = unitOfBarber.get(payer?.preferredBarberId ?? "") ?? "unit-chacara";
+  }
+
   // ---------- appointments ----------
   const subsByCustomer = new Map<string, Subscription>();
   for (const s of subscriptions) subsByCustomer.set(s.customerId, s);

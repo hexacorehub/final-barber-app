@@ -47,6 +47,12 @@ export function AddMemberForm() {
             </label>
             <input id="m-phone" name="phone" inputMode="tel" className="h-12 rounded-xl border border-line px-4 text-base outline-none focus:border-ink" />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="m-cpf" className="text-sm font-semibold">
+              CPF <span className="font-normal text-muted">(opcional; cada CPF só pode estar em uma conta)</span>
+            </label>
+            <input id="m-cpf" name="cpf" inputMode="numeric" placeholder="000.000.000-00" className="h-12 rounded-xl border border-line px-4 text-base outline-none focus:border-ink" />
+          </div>
           <label className="flex min-h-11 items-center gap-3 text-sm">
             <input type="checkbox" name="minor" className="size-5 accent-ink" /> Menor de idade
           </label>

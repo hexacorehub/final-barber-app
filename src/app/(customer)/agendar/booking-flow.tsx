@@ -33,6 +33,10 @@ export interface BookingProps {
   days: { key: string; weekday: number; label: string; sub: string; closed: boolean }[];
   today: string;
   nowMinutes: number;
+  /** "O de sempre": opens the flow already filled (overrides the saved draft). */
+  initial?: { who: string[]; serviceIds: string[]; sel: Selection; day: string; start: number } | null;
+  /** The customer's usual time, to mark "seu horário de sempre". */
+  usual?: { minute: number; weekday: number | null; barberId: string | null } | null;
 }
 
 const DEFAULT_DURATION = 40;
@@ -107,7 +111,7 @@ export function BookingFlow(p: BookingProps) {
   useEffect(() => {
     const valid = (s: Selection | undefined): s is Selection =>
       Boolean(s && (s.mode === "branch" || s.mode === "professional") && (!s.barberId || p.barbers.some((b) => b.id === s.barberId)) && (!s.unitId || p.units.some((u) => u.id === s.unitId)));
-    const draft = readJson<Draft>(() => sessionStorage, DRAFT_KEY);
+    const draft = p.initial ?? readJson<Draft>(() => sessionStorage, DRAFT_KEY);
     const prefs = readJson<Selection>(() => localStorage, PREFS_KEY);
     if (draft) {
       const people = draft.who.filter((id) => p.people.some((x) => x.id === id));
@@ -242,6 +246,16 @@ export function BookingFlow(p: BookingProps) {
   };
 
   const unit = selectedUnit(sel, p.barbers);
+  const resolvedUnit = unit ?? (start !== null && decision?.ok ? decision.unitId : null);
+  const unitAddress = p.units.find((u) => u.id === resolvedUnit)?.address ?? null;
+  const usualSlot = (() => {
+    const u = p.usual;
+    if (!u || (u.weekday !== null && u.weekday !== dayInfo.weekday)) return null;
+    if (sel.barberId && u.barberId && sel.barberId !== u.barberId) return null;
+    let best: number | null = null;
+    for (const t of starts) if (Math.abs(t - u.minute) <= 60 && (best === null || Math.abs(t - u.minute) < Math.abs(best - u.minute))) best = t;
+    return best;
+  })();
   const issues = decision && !decision.ok ? decision.issues : [];
   const canConfirm = chosen.length > 0 && people.length > 0 && start !== null && Boolean(decision?.ok) && !pendingChange;
   const dayBookings = p.existing.filter((b) => b.day === day && who.includes(b.customerId));
@@ -270,8 +284,23 @@ export function BookingFlow(p: BookingProps) {
         </span>
         <h1 className="font-display text-[30px] font-semibold">{result.people.length > 1 ? "Agendados" : "Agendado"}</h1>
         <p className="text-[15px] text-muted first-letter:uppercase">
-          {weekdayLong(d)}, {shortDate(d)} às {t} · unidade {result.unitName}
+          {weekdayLong(d)}, {shortDate(d)} às {t}
         </p>
+        <div className="flex w-full items-start gap-3 rounded-2xl bg-chip p-4 text-left">
+          <MapPin size={20} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="font-semibold">Unidade {result.unitName}</span>
+            <span className="text-sm text-ink-soft">{result.unitAddress}</span>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${result.shopName} ${result.unitAddress}`)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 self-start text-sm font-semibold underline underline-offset-2"
+            >
+              Ver no mapa
+            </a>
+          </div>
+        </div>
         <ul className="flex w-full flex-col gap-3 text-left">
           {result.people.map((x) => (
             <li key={x.name} className="rounded-2xl border border-line p-4">
@@ -283,7 +312,10 @@ export function BookingFlow(p: BookingProps) {
             </li>
           ))}
         </ul>
-        <p className="text-[13px] text-muted">Vamos te lembrar 2 horas antes pelo WhatsApp.</p>
+        <button type="button" onClick={() => downloadIcs(result)} className={cn(buttonStyles.secondary, "w-full")}>
+          Adicionar à agenda do celular
+        </button>
+        <p className="text-[13px] text-muted">Te lembramos na véspera, às 18h, pelo WhatsApp.</p>
         <Link href="/inicio" className={cn(buttonStyles.primary, "w-full")}>
           Voltar ao início
         </Link>
@@ -522,9 +554,14 @@ export function BookingFlow(p: BookingProps) {
                   type="button"
                   aria-pressed={start === t}
                   onClick={() => setStart(t)}
-                  className={cn("h-11 rounded-xl border text-sm font-medium", start === t ? "border-ink bg-ink text-white" : "border-[#d4d4d4] bg-white")}
+                  aria-label={usualSlot === t ? `${hhmm(t)}, seu horário de sempre` : undefined}
+                  className={cn(
+                    "relative flex h-11 flex-col items-center justify-center rounded-xl border text-sm font-medium leading-tight",
+                    start === t ? "border-ink bg-ink text-white" : usualSlot === t ? "border-ink border-[1.5px] bg-white" : "border-[#d4d4d4] bg-white",
+                  )}
                 >
                   {hhmm(t)}
+                  {usualSlot === t ? <span className="text-[10px] font-semibold opacity-80">de sempre</span> : null}
                 </button>
               ))}
             </div>
@@ -544,14 +581,17 @@ export function BookingFlow(p: BookingProps) {
           <dt className="text-muted">Serviço</dt>
           <dd>{chosen.length ? chosen.map((s) => s.name).join(" + ") : "—"}</dd>
           <dt className="text-muted">Unidade</dt>
-          <dd>{unit ? unitName(unit) : start !== null && decision?.ok ? unitName(decision.unitId) : "A primeira com horário livre"}</dd>
+          <dd>
+            {resolvedUnit ? unitName(resolvedUnit) : "A primeira com horário livre"}
+            {unitAddress ? <span className="block text-xs text-muted">{unitAddress}</span> : null}
+          </dd>
           <dt className="text-muted">Profissional</dt>
           <dd>{sel.barberId ? barberName(sel.barberId) : "Quem estiver livre"}</dd>
           <dt className="text-muted">Quando</dt>
           <dd className="first-letter:uppercase">{start !== null ? `${dayInfo.label === "Hoje" || dayInfo.label === "Amanhã" ? dayInfo.label.toLowerCase() : dayInfo.sub} às ${hhmm(start)}` : "—"}</dd>
         </dl>
         <p className="text-[13px] text-ink-soft lg:hidden">
-          {[chosen.map((s) => s.name).join(" + "), sel.barberId ? barberName(sel.barberId) : unit ? unitName(unit) : null, start !== null ? `${dayInfo.label === "Hoje" || dayInfo.label === "Amanhã" ? dayInfo.label.toLowerCase() : dayInfo.sub} ${hhmm(start)}` : null]
+          {[chosen.map((s) => s.name).join(" + "), sel.barberId ? barberName(sel.barberId) : null, resolvedUnit ? `Unidade ${unitName(resolvedUnit)}` : null, start !== null ? `${dayInfo.label === "Hoje" || dayInfo.label === "Amanhã" ? dayInfo.label.toLowerCase() : dayInfo.sub} ${hhmm(start)}` : null]
             .filter(Boolean)
             .join(" · ") || "Escolha o serviço, onde e o horário."}
         </p>
@@ -593,6 +633,35 @@ export function BookingFlow(p: BookingProps) {
       </aside>
     </div>
   );
+}
+
+/** A calendar file (.ics) with the appointment, made in the browser. */
+function downloadIcs(r: Extract<BookingResult, { ok: true }>) {
+  const stamp = (iso: string) => iso.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const start = new Date(r.startsAt);
+  const end = new Date(start.getTime() + r.durationMin * 60_000);
+  const text = (x: string) => x.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Final Barber//PT-BR",
+    "BEGIN:VEVENT",
+    `UID:${stamp(r.startsAt)}-${r.unitName.replace(/\s/g, "")}@finalbarber`,
+    `DTSTAMP:${stamp(new Date().toISOString())}`,
+    `DTSTART:${stamp(start.toISOString())}`,
+    `DTEND:${stamp(end.toISOString())}`,
+    `SUMMARY:${text(`${r.shopName}: ${r.people.map((x) => x.name).join(" e ")}`)}`,
+    `LOCATION:${text(`${r.shopName} ${r.unitName}, ${r.unitAddress}`)}`,
+    `DESCRIPTION:${text(r.people.map((x) => `${x.name}: ${x.services} com ${x.barber}`).join("\n"))}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "agendamento.ics";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function Step({ n, title, hint, children }: { n: number; title: string; hint?: string; children: React.ReactNode }) {

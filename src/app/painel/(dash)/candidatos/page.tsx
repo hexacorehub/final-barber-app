@@ -6,7 +6,10 @@ import { Badge, Stat, cn } from "@/components/ui";
 import { candidateInsights, clubCandidates, type CandidateSegment, type Chance, type ClubCandidate } from "@/domain/assistants/candidates";
 import { candidateReason, counterScript, dayWords, inviteMessage, momentText, namesFor, planShort, timeOf } from "@/domain/assistants/phrases";
 import { formatInt, formatMoneyCompact, formatMoneyRound, formatPercent } from "@/domain/money";
-import { loadSnapshot } from "@/server/data/store";
+import { currentStaff } from "@/server/staff";
+import { can } from "@/domain/access";
+import { NoAccess } from "@/components/no-access";
+import { painelSnapshot } from "@/server/painel-scope";
 
 export const metadata: Metadata = { title: "Candidatos ao clube" };
 
@@ -20,9 +23,14 @@ const FILTERS: { id: "todos" | Chance; label: string }[] = [
 ];
 
 export default async function CandidatesPage({ searchParams }: { searchParams: Promise<{ chance?: string }> }) {
-  const s = await loadSnapshot();
+  const staff = (await currentStaff())!;
+  if (!can(staff, "candidates")) return <NoAccessPage title="Candidatos ao clube" what="candidatos ao clube" />;
+  const s = await painelSnapshot();
   const n = namesFor(s);
-  const list = clubCandidates(s);
+  const grant = can(staff, "candidates");
+  const canMessage = Boolean(can(staff, "messages_marketing"));
+  // A barber sees only the candidates they serve (to make the offer at the chair).
+  const list = clubCandidates(s).filter((c) => grant !== "own" || c.offerBarberId === staff.barberId);
   const ins = candidateInsights(s, list);
   const chance = ((await searchParams).chance ?? "todos") as "todos" | Chance;
   const shown = chance === "todos" ? list : list.filter((c) => c.chance === chance);
@@ -201,7 +209,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
                 </td>
                 <td className="text-[13px]">{momentText(c, n, s.now)}</td>
                 <td className="text-right">
-                  <WhatsAppButton phone={c.decider.phone} text={inviteMessage(c, n)} label="Convidar" />
+                  {canMessage ? <WhatsAppButton phone={c.decider.phone} text={inviteMessage(c, n)} label="Convidar" track={{ kind: "club_invite", customerId: c.customer.id }} /> : <span className="text-xs text-muted">Oferecer na cadeira</span>}
                 </td>
               </tr>
             ))}
@@ -217,4 +225,13 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
 
 function ChanceBadge({ c }: { c: ClubCandidate }) {
   return <Badge tone={c.chance === "alta" ? "ok" : "neutral"}>{CHANCE_LABEL[c.chance]} chance</Badge>;
+}
+
+function NoAccessPage({ title, what }: { title: string; what: string }) {
+  return (
+    <>
+      <PageHeader title={title} path="/painel" />
+      <NoAccess what={what} />
+    </>
+  );
 }
